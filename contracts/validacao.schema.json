@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "validacao.schema.json",
+  "title": "Resultado padrão de validação",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contrato_id", "token", "etapa", "status", "testes", "evidencias", "causa", "tentativa", "criterios", "descompassos"],
+  "properties": {
+    "contrato_id": { "type": "string" },
+    "token": { "type": "string" },
+    "etapa": { "const": "verificacao" },
+    "status": { "enum": ["aprovado", "reprovado"] },
+    "testes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["passaram", "falharam"],
+      "properties": {
+        "passaram": { "type": "integer", "minimum": 0 },
+        "falharam": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "evidencias": { "type": "array", "items": { "type": "string", "pattern": "^.+:[0-9]+ — .+$" } },
+    "causa": { "enum": ["implementacao", "especificacao", "ambiente", null] },
+    "tentativa": { "type": "integer", "minimum": 1, "maximum": 3 },
+    "criterios": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["numero", "comando", "saida", "sensor", "passou", "assertion", "perfil"],
+        "properties": {
+          "numero": { "type": "string" },
+          "comando": { "type": "string" },
+          "saida": { "type": "string" },
+          "sensor": { "type": "string", "minLength": 1 },
+          "passou": { "type": "boolean" },
+          "assertion": { "type": "string" },
+          "perfil": { "type": "string" }
+        }
+      }
+    },
+    "descompassos": { "type": "array", "items": { "type": "string" } }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "aprovado" } } },
+      "then": { "properties": { "causa": { "const": null }, "testes": { "properties": { "falharam": { "const": 0 } } } } }
+    },
+    {
+      "if": { "properties": { "status": { "const": "reprovado" } } },
+      "then": { "properties": { "causa": { "enum": ["implementacao", "especificacao", "ambiente"] } } }
+    }
+  ]
+}

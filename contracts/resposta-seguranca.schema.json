@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "resposta-seguranca.schema.json",
+  "title": "Revisão de segurança",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contrato_id", "token", "etapa", "status", "achados"],
+  "properties": {
+    "contrato_id": { "type": "string" },
+    "token": { "type": "string" },
+    "etapa": { "const": "seguranca" },
+    "status": { "enum": ["aprovado", "reprovado"] },
+    "achados": { "type": "array", "items": { "type": "string", "pattern": "^.+:[0-9]+ — .+$" } }
+  }
+}

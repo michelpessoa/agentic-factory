@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "resposta-planejador.schema.json",
+  "title": "Plano em tarefas pequenas",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contrato_id", "token", "etapa", "status", "tarefas"],
+  "properties": {
+    "contrato_id": { "type": "string" },
+    "token": { "type": "string" },
+    "etapa": { "const": "planejamento" },
+    "status": { "enum": ["concluido", "bloqueado"] },
+    "bloqueio": { "type": ["string", "null"] },
+    "tarefas": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["numero", "descricao", "arquivos"],
+        "properties": {
+          "numero": { "type": "string" },
+          "descricao": { "type": "string", "minLength": 1 },
+          "arquivos": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  }
+}

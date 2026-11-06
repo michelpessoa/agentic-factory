@@ -1,0 +1,42 @@
+name: fabrica
+
+services:
+  proxy:
+    build: ./proxy
+    image: fabrica-proxy:0.1
+    container_name: fabrica-proxy
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges]
+    tmpfs: [/tmp, /run/tinyproxy]
+    networks:
+      interna:
+        ipv4_address: 10.89.0.2
+      saida: {}
+
+  # Imagens usadas por `docker run`; o perfil impede que subam com o proxy.
+  agente:
+    build: ./agente
+    image: fabrica-agente:0.1
+    profiles: [imagens]
+
+  gates:
+    build: ./gates
+    image: fabrica-gates:0.1
+    profiles: [imagens]
+
+  decider:
+    build: ./decider
+    image: fabrica-decider:0.1
+    profiles: [avaliacao]
+
+networks:
+  interna:
+    name: fabrica-interna
+    internal: true
+    ipam:
+      config:
+        - subnet: 10.89.0.0/24
+  saida:
+    name: fabrica-saida

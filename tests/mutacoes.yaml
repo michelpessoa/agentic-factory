@@ -1,0 +1,262 @@
+# Cada entrada enfraquece uma proteção. O teste indicado tem que falhar: gate que nunca reprova
+# é ruído. Derivado do selftest.py do framework.
+- arquivo: fabrica/gates.py
+  teste: tests/test_gates.py
+  descricao: escopo aprova qualquer arquivo
+  procurar: 'if fora:'
+  trocar: 'if False:'
+- arquivo: fabrica/gates.py
+  teste: tests/test_gates.py
+  descricao: caminho protegido não exige risco alto
+  procurar: 'if risco != "alto" or not _permitido(a, arquivos_permitidos)'
+  trocar: 'if not _permitido(a, arquivos_permitidos)'
+- arquivo: fabrica/gates.py
+  teste: tests/test_gates.py
+  descricao: caminho protegido não exige estar na SDD
+  procurar: 'if risco != "alto" or not _permitido(a, arquivos_permitidos)'
+  trocar: 'if risco != "alto"'
+- arquivo: fabrica/gates.py
+  teste: tests/test_gates.py
+  descricao: patch vazio passa
+  procurar: 'if not patch.strip():'
+  trocar: 'if False:'
+- arquivo: fabrica/gates.py
+  teste: tests/test_gates.py
+  descricao: link simbólico passa
+  procurar: 'if LINK_SIMBOLICO_RE.search(patch):'
+  trocar: 'if False:'
+- arquivo: fabrica/gates.py
+  teste: tests/test_gates.py
+  descricao: caminho ambíguo passa
+  procurar: 'if resto.count(" b/") != 1:'
+  trocar: 'if False:'
+- arquivo: fabrica/contratos.py
+  teste: tests/test_contratos.py
+  descricao: token pode ser reutilizado
+  procurar: 'AND usado_em IS NULL'
+  trocar: ''
+- arquivo: fabrica/contratos.py
+  teste: tests/test_contratos.py
+  descricao: token não é conferido
+  procurar: 'if not secrets.compare_digest(_hash(resposta["token"]), token_hash):'
+  trocar: 'if False:'
+- arquivo: fabrica/contratos.py
+  teste: tests/test_contratos.py
+  descricao: resposta fora do schema é aceita
+  procurar: 'raise RespostaRecusada(f"fora do schema: {erros}")'
+  trocar: 'pass'
+- arquivo: fabrica/contratos.py
+  teste: tests/test_contratos.py
+  descricao: evidência sai da raiz
+  procurar: 'if not alvo.is_relative_to(raiz) or not alvo.is_file():'
+  trocar: 'if not alvo.is_file():'
+- arquivo: fabrica/estados.py
+  teste: tests/test_estados.py
+  descricao: transição não é conferida
+  procurar: 'if destino not in TRANSICOES[origem]:'
+  trocar: 'if False:'
+- arquivo: fabrica/estados.py
+  teste: tests/test_estados.py
+  descricao: atalho para o merge sem CI
+  procurar: '"PR_PARA_DEVELOP": {"CI_E2E", "PAUSADA_AMBIENTE"},'
+  trocar: '"PR_PARA_DEVELOP": {"CI_E2E", "PAUSADA_AMBIENTE", "MERGE_EM_DEVELOP"},'
+- arquivo: fabrica/publicacao.py
+  teste: tests/test_publicacao.py
+  descricao: merge aceita qualquer destino
+  procurar: 'if pr["baseRefName"] != BASE_DE_MERGE_PERMITIDA:'
+  trocar: 'if False:'
+- arquivo: fabrica/publicacao.py
+  teste: tests/test_publicacao.py
+  descricao: push em qualquer ramo
+  procurar: 'if not RAMO_PUBLICAVEL.match(ramo):'
+  trocar: 'if False:'
+- arquivo: fabrica/publicacao.py
+  teste: tests/test_publicacao.py
+  descricao: tag sem o merge humano
+  procurar: 'if ancestral.returncode != 0:'
+  trocar: 'if False:'
+- arquivo: fabrica/pipeline.py
+  teste: tests/test_pipeline.py
+  descricao: aprovador da SDD não é conferido
+  procurar: 'if aprovador not in self.projeto.permitidos:'
+  trocar: 'if False:'
+- arquivo: fabrica/pipeline.py
+  teste: tests/test_pipeline.py
+  descricao: limite de tentativas ignorado
+  procurar: 'if dados["tentativa"] >= MAXIMO_DE_TENTATIVAS:'
+  trocar: 'if False:'
+- arquivo: fabrica/pipeline.py
+  teste: tests/test_pipeline.py
+  descricao: gate de escopo fora do pipeline
+  procurar: 'gate_escopo(patch, entrada["arquivos_permitidos"]),'
+  trocar: ''
+- arquivo: fabrica/pipeline.py
+  teste: tests/test_pipeline.py
+  descricao: varredura que não rodou conta como aprovada
+  procurar: 'if codigo not in {0, 1}:'
+  trocar: 'if False:'
+- arquivo: fabrica/pipeline.py
+  teste: tests/test_pipeline.py
+  descricao: merge sem CI aprovado
+  procurar: 'if situacao == "passou":'
+  trocar: 'if True:'
+- arquivo: fabrica/pipeline.py
+  teste: tests/test_pipeline.py
+  descricao: reprovação do revisor é ignorada
+  procurar: 'if validacao["status"] == "reprovado":'
+  trocar: 'if False:'
+- arquivo: adapters/doc_traceability/evidencia.py
+  teste: tests/test_evidencia.py
+  descricao: reprovado vira evidência
+  procurar: 'if validacao["status"] != "aprovado":'
+  trocar: 'if False:'
+- arquivo: fabrica/gates.py
+  teste: tests/test_gates.py
+  descricao: testador pode alterar produção
+  procurar: 'fora = [a for a in arquivos_do_patch(patch) if not _permitido(a, list(padroes))]'
+  trocar: 'fora = []'
+- arquivo: fabrica/gates.py
+  teste: tests/test_gates.py
+  descricao: sizing small não é conferido
+  procurar: 'if sizing == "small" and total > LIMITE_DE_ARQUIVOS_SMALL:'
+  trocar: 'if False:'
+- arquivo: fabrica/pipeline.py
+  teste: tests/test_pipeline.py
+  descricao: gate do testador ignorado no pipeline
+  procurar: 'gate = gate_so_testes(delta, self.projeto.padroes_de_teste)'
+  trocar: 'gate = ResultadoGate("só testes", True)'
+- arquivo: fabrica/pipeline.py
+  teste: tests/test_pipeline.py
+  descricao: risco alto sem revisão de segurança
+  procurar: 'if all(g.aprovado for g in resultados) and dados["risco"] == "alto":'
+  trocar: 'if False:'
+- arquivo: fabrica/pipeline.py
+  teste: tests/test_pipeline.py
+  descricao: aprovado com achado de segurança vale
+  procurar: 'if resposta["status"] == "aprovado" and not resposta["achados"]:'
+  trocar: 'if resposta["status"] == "aprovado":'
+- arquivo: fabrica/decisao.py
+  teste: tests/test_pipeline.py
+  descricao: baixa confiança segue sozinha
+  procurar: 'return self.confianca >= LIMIAR_DE_CONFIANCA'
+  trocar: 'return True'
+- arquivo: fabrica/vigia.py
+  teste: tests/test_vigia.py
+  descricao: primeira leitura dispara SDDs antigas
+  procurar: 'if cursor.rowcount == 1 and not primeira_leitura:'
+  trocar: 'if cursor.rowcount == 1:'
+- arquivo: fabrica/pipeline.py
+  teste: tests/test_pipeline.py
+  descricao: histórico arquivado visível ao desenvolvedor
+  procurar: 'preparar_copia(self.projeto.repo, dados["base"], trabalho, self._ocultos())'
+  trocar: 'preparar_copia(self.projeto.repo, dados["base"], trabalho)'
+- arquivo: adapters/doc_traceability/arquivo.py
+  teste: tests/test_arquivo.py
+  descricao: arquivamento não grava a entrega
+  procurar: 'entrega: {{pr: {pr}, data: "{data}", resultado: aprovado}}'
+  trocar: 'tags: []'
+- arquivo: fabrica/painel.py
+  teste: tests/test_painel.py
+  descricao: motivo escrito por agente vira HTML no painel
+  procurar: '<td>{escape(motivo)}</td>'
+  trocar: '<td>{motivo}</td>'
+- arquivo: fabrica/painel.py
+  teste: tests/test_painel.py
+  descricao: caminho da SDD vira HTML na página inicial
+  procurar: '{escape(sdd)}</a>'
+  trocar: '{sdd}</a>'
+- arquivo: fabrica/painel.py
+  teste: tests/test_painel.py
+  descricao: painel mostra a validação, com o token do contrato
+  procurar: 'CAMPOS_DA_EXECUCAO = ("risco",'
+  trocar: 'CAMPOS_DA_EXECUCAO = ("validacao", "risco",'
+- arquivo: fabrica/painel.py
+  teste: tests/test_painel.py
+  descricao: painel aceita Host de fora
+  procurar: 'if self.headers.get("Host") != f"{ENDERECO}:{self.server.server_address[1]}":'
+  trocar: 'if False:'
+- arquivo: fabrica/painel.py
+  teste: tests/test_painel.py
+  descricao: painel abre o banco com permissão de escrita
+  procurar: '?mode=ro"'
+  trocar: '?mode=rw"'
+- arquivo: fabrica/painel.py
+  teste: tests/test_painel.py
+  descricao: painel escuta em todas as interfaces
+  procurar: 'ENDERECO = "127.0.0.1"'
+  trocar: 'ENDERECO = "0.0.0.0"'
+- arquivo: fabrica/painel.py
+  teste: tests/test_painel.py
+  descricao: página sai sem política contra script
+  procurar: "\"default-src 'none'; style-src 'unsafe-inline'\""
+  trocar: "\"default-src *\""
+- arquivo: fabrica/metricas.py
+  teste: tests/test_metricas.py
+  descricao: subestimação de risco deixa de ser contada
+  procurar: 'ORDEM_DE_RISCO[r["risco"]] < ORDEM_DE_RISCO[r["esperado"]]'
+  trocar: 'ORDEM_DE_RISCO[r["risco"]] > ORDEM_DE_RISCO[r["esperado"]]'
+- arquivo: fabrica/roteamento.py
+  teste: tests/test_gates.py
+  descricao: sinais de risco ignoram resumo e requisitos
+  procurar: 'SINAIS_DE_ALTO_RISCO.search(_normalizar(_texto_da_entrada(entrada)))'
+  trocar: 'SINAIS_DE_ALTO_RISCO.search(_normalizar(entrada.get("titulo") or ""))'
+- arquivo: fabrica/roteamento.py
+  teste: tests/test_gates.py
+  descricao: sinais de risco deixam de tirar acento
+  procurar: 'return "".join(c for c in decomposto if not unicodedata.combining(c))'
+  trocar: 'return texto.lower()'
+- arquivo: fabrica/roteamento.py
+  teste: tests/test_gates.py
+  descricao: apagar volta a contar como pagar
+  procurar: '\bpagar'
+  trocar: 'pagar'
+- arquivo: fabrica/decisao.py
+  teste: tests/test_pipeline.py
+  descricao: decisor desce abaixo do piso do sizing
+  procurar: 'if ORDEM_DE_RISCO[decisao.risco] < ORDEM_DE_RISCO[piso]:'
+  trocar: 'if False:'
+- arquivo: fabrica/pipeline.py
+  teste: tests/test_pipeline.py
+  descricao: pipeline aceita SDD sem aprovação no terminal
+  procurar: 'if not self.aprovacoes.aprovada(self.projeto.codigo, caminho_sdd, conteudo):'
+  trocar: 'if False:'
+- arquivo: fabrica/aprovacoes.py
+  teste: tests/test_pipeline.py
+  descricao: aprovação deixa de valer só para o conteúdo aprovado
+  procurar: 'AND sha256 = ?'
+  trocar: 'AND sha256 != ?'
+- arquivo: fabrica/vigia.py
+  teste: tests/test_vigia.py
+  descricao: vigia dispara SDD sem aprovação no terminal
+  procurar: 'if not primeira_leitura and not self._aprovacoes.aprovada('
+  trocar: 'if False and not self._aprovacoes.aprovada('
+- arquivo: fabrica/__main__.py
+  teste: tests/test_descoberta.py
+  descricao: aprovar aceita entrada que não vem de terminal
+  procurar: 'if not sys.stdin.isatty():'
+  trocar: 'if False:'
+- arquivo: fabrica/descoberta.py
+  teste: tests/test_descoberta.py
+  descricao: rascunho aceita caminho com ..
+  procurar: 'if ".." in caminho.split("/") or caminho.startswith(PREFIXOS_PROIBIDOS):'
+  trocar: 'if caminho.startswith(PREFIXOS_PROIBIDOS):'
+- arquivo: fabrica/descoberta.py
+  teste: tests/test_descoberta.py
+  descricao: aprovação registrada não é a do conteúdo publicado
+  procurar: 'self.projeto.codigo, caminho, (copia / caminho).read_bytes(), f"descoberta {sessao}"'
+  trocar: 'self.projeto.codigo, caminho, dados["sdd_id"].encode(), f"descoberta {sessao}"'
+- arquivo: fabrica/publicacao.py
+  teste: tests/test_publicacao.py
+  descricao: release mergeada sem tag reabre o mesmo número
+  procurar: 'if _ja_em(repo, f"origin/{ramo}", f"origin/{principal}"):'
+  trocar: 'if False:'
+- arquivo: fabrica/publicacao.py
+  teste: tests/test_publicacao.py
+  descricao: pós-release tenta levar develop adiantada de volta a main
+  procurar: 'if not _ja_em(repo, f"origin/{base}", sha):'
+  trocar: 'if False:'
+- arquivo: fabrica/__main__.py
+  teste: tests/test_descoberta.py
+  descricao: historico mostra o token do contrato
+  procurar: 'if k != "token"}'
+  trocar: '}'

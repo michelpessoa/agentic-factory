@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "resposta-decisor.schema.json",
+  "title": "Resposta da camada de decisão",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contrato_id", "token", "etapa", "risco", "confianca", "justificativa"],
+  "properties": {
+    "contrato_id": { "type": "string" },
+    "token": { "type": "string" },
+    "etapa": { "const": "decisao" },
+    "risco": { "enum": ["baixo", "medio", "alto"] },
+    "confianca": { "type": "number", "minimum": 0, "maximum": 1 },
+    "justificativa": { "type": "string", "minLength": 1 }
+  }
+}

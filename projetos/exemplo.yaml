@@ -1,0 +1,11 @@
+# Copie para projetos/<nome>.yaml e troque os valores. <nome> é o que vai nos comandos.
+codigo: EXEMPLO                     # prefixo dos ids de SDD: SDD-EXEMPLO-0001
+repo: git@github.com:usuario/projeto.git
+github: usuario/projeto
+base: develop                       # onde a fábrica faz merge
+principal: main                     # só o humano faz merge aqui
+permitidos: [usuario]               # logins do GitHub cujo merge de SDD dispara o vigia
+owner: "Nome do Owner"              # vai no front-matter das SDDs da descoberta
+comandos:                           # rodados nos gates, num contêiner sem rede
+  build: python3 -m compileall -q .
+  testes: python3 -m unittest discover -s tests -v

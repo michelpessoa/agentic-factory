@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "resposta-testador.schema.json",
+  "title": "Resposta do testador. O diff não vem aqui: a fábrica o calcula.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contrato_id", "token", "etapa", "status", "resumo", "evidencias"],
+  "properties": {
+    "contrato_id": { "type": "string" },
+    "token": { "type": "string" },
+    "etapa": { "const": "testes" },
+    "status": { "enum": ["concluido", "bloqueado"] },
+    "resumo": { "type": "string", "minLength": 1 },
+    "evidencias": { "type": "array", "items": { "type": "string", "pattern": "^.+:[0-9]+ — .+$" } },
+    "comandos": { "type": "array", "items": { "type": "string" } },
+    "bloqueio": { "type": ["string", "null"] }
+  }
+}

@@ -1,0 +1,222 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "resposta-descoberta.schema.json",
+  "title": "Perguntas ao humano ou rascunho de SDD",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contrato_id",
+    "token",
+    "etapa",
+    "status",
+    "perguntas",
+    "rascunho"
+  ],
+  "properties": {
+    "contrato_id": {
+      "type": "string"
+    },
+    "token": {
+      "type": "string"
+    },
+    "etapa": {
+      "const": "descoberta"
+    },
+    "status": {
+      "enum": [
+        "perguntas",
+        "rascunho"
+      ]
+    },
+    "perguntas": {
+      "description": "Com status perguntas: de 1 a 5, objetivas. Com status rascunho: vazia.",
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "type": "string",
+        "minLength": 5,
+        "maxLength": 400
+      }
+    },
+    "rascunho": {
+      "description": "Com status rascunho: a SDD em campos. Com status perguntas: null.",
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "titulo",
+        "resumo",
+        "sizing",
+        "arquitetura",
+        "requisitos",
+        "especificacao",
+        "criterios",
+        "instrucoes",
+        "tarefas"
+      ],
+      "properties": {
+        "titulo": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400,
+          "pattern": "^[^|\\n]+$"
+        },
+        "resumo": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "sizing": {
+          "enum": [
+            "small",
+            "medium"
+          ]
+        },
+        "arquitetura": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "requisitos": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "requisito",
+              "aceite",
+              "arquivos"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^RF[0-9]{2}$"
+              },
+              "requisito": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 400,
+                "pattern": "^[^|\\n]+$"
+              },
+              "aceite": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 400,
+                "pattern": "^[^|\\n]+$",
+                "description": "EARS: começa com 'Quando', 'Enquanto', 'Se', 'Onde' ou 'O sistema deve'."
+              },
+              "arquivos": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 12,
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_][A-Za-z0-9_./-]*$",
+                  "maxLength": 200
+                }
+              }
+            }
+          }
+        },
+        "especificacao": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "criterios": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "criterio",
+              "comando",
+              "esperado"
+            ],
+            "properties": {
+              "criterio": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 400,
+                "pattern": "^[^|\\n]+$",
+                "description": "Começa pelo RF-ID que verifica, ou 'Regressão'."
+              },
+              "comando": {
+                "description": "Comando de terminal que roda sozinho no repositório.",
+                "type": "string",
+                "pattern": "^[^|`\\n]+$",
+                "maxLength": 300
+              },
+              "esperado": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 400,
+                "pattern": "^[^|\\n]+$"
+              }
+            }
+          }
+        },
+        "instrucoes": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "tarefas": {
+          "description": "Obrigatória com sizing medium e mais de um requisito. Vazia em small.",
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "descricao",
+              "requisitos",
+              "arquivos",
+              "depende_de"
+            ],
+            "properties": {
+              "descricao": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 400,
+                "pattern": "^[^|\\n]+$"
+              },
+              "requisitos": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string",
+                  "pattern": "^RF[0-9]{2}$"
+                }
+              },
+              "arquivos": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 12,
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_][A-Za-z0-9_./-]*$",
+                  "maxLength": 200
+                }
+              },
+              "depende_de": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

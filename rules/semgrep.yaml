@@ -1,0 +1,35 @@
+rules:
+  - id: python-shell-true
+    languages: [python]
+    severity: ERROR
+    message: subprocess com shell=True
+    pattern: subprocess.$F(..., shell=True, ...)
+  - id: python-eval-exec
+    languages: [python]
+    severity: ERROR
+    message: eval ou exec
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: exec(...)
+  - id: python-pickle-load
+    languages: [python]
+    severity: ERROR
+    message: pickle sobre dado externo
+    pattern-either:
+      - pattern: pickle.load(...)
+      - pattern: pickle.loads(...)
+  - id: js-eval
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: eval
+    pattern: eval(...)
+  - id: js-child-process-exec
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: child_process.exec com comando montado
+    pattern: child_process.exec($X, ...)
+  - id: sql-por-concatenacao
+    languages: [python]
+    severity: ERROR
+    message: SQL montado por f-string
+    pattern-regex: \.execute\(\s*f["']

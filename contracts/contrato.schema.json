@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "contrato.schema.json",
+  "title": "Contrato emitido pela fábrica para uma etapa de agente",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["versao", "contrato_id", "run_id", "projeto", "etapa", "tentativa", "token", "emitido_em", "entrada"],
+  "properties": {
+    "versao": { "const": "1" },
+    "contrato_id": { "type": "string", "minLength": 1 },
+    "run_id": { "type": "string", "minLength": 1 },
+    "projeto": { "type": "string", "minLength": 1 },
+    "etapa": { "enum": ["decisao", "planejamento", "desenvolvimento", "testes", "seguranca", "verificacao", "descoberta"] },
+    "tentativa": { "type": "integer", "minimum": 1, "maximum": 3 },
+    "token": { "type": "string", "minLength": 32 },
+    "emitido_em": { "type": "string", "minLength": 1 },
+    "entrada": { "type": "object" }
+  }
+}

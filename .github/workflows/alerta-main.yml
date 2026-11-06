@@ -1,0 +1,33 @@
+name: alerta-main
+
+# Sem proteção de branch no plano Free, nada impede a escrita em main. Este workflow não bloqueia:
+# transforma em issue tudo o que chega a main sem vir de release ou hotfix. Derivado do
+# main-guard.yml do framework.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  conferir:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Conferir a origem do commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MENSAGEM: ${{ github.event.head_commit.message }}
+          FORCADO: ${{ github.event.forced }}
+          SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [ "$FORCADO" != "true" ] && printf '%s' "$MENSAGEM" | head -1 | grep -Eq '^Merge pull request #[0-9]+ from [^ ]+/(release|hotfix)/[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "origem aceita"
+            exit 0
+          fi
+          gh issue create -R "$REPO" --title "Alerta: escrita em main fora de release ($SHA)" \
+            --body "O commit $SHA chegou a main sem vir de uma PR de release ou hotfix. Forçado: $FORCADO."
+          exit 1
