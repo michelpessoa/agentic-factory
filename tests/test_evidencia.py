@@ -173,12 +173,98 @@ def test_validate_state_real_reprova_sem_o_sensor(repo):
         "criterios": [VALIDACAO["criterios"][0] | {"sensor": " "}],
     }
     fonte = FonteDocTraceability(Framework())
-    assert fonte.registrar_verificacao(repo, CAMINHO, sem_sensor, "a", "b")
+    problemas = fonte.registrar_verificacao(repo, CAMINHO, sem_sensor, "a", "b")
+    assert problemas
+    assert not any('"schema"' in p for p in problemas)
 
 
 @sem_framework
 def test_entrada_real_junta_validadores_e_compilador(repo):
-    fonte = FonteDocTraceability(Framework())
+    fonte = FonteDocTraceability(Framework(), repo, "X")
     assert fonte.problemas_de_entrada(repo, CAMINHO) == []
     (repo / CAMINHO).write_text(SDD.replace("## Critérios de aceite", "## Outra"), encoding="utf-8")
     assert fonte.problemas_de_entrada(repo, CAMINHO)
+
+
+@sem_framework
+def test_entrada_real_da_uma_linha_por_problema_do_json(repo):
+    fonte = FonteDocTraceability(Framework(), repo, "X")
+    (repo / CAMINHO).write_text(SDD + "\n[NEEDS CLARIFICATION: qual soma?]\n", encoding="utf-8")
+    problemas = fonte.problemas_de_entrada(repo, CAMINHO)
+    assert any(
+        p.startswith("validate_doc.py: SDD-X-0001: tem `NEEDS CLARIFICATION`") for p in problemas
+    )
+
+
+# SDD-FAB-0012, RF03: linha "Fidelidade à origem" na evidência
+
+LINHA_MECANICA = {
+    "numero": "Fidelidade à origem (check_source_docs)",
+    "comando": "python3 kit/_framework/scripts/check_source_docs.py docs/sdd/SDD-ZERO-0001.md c",
+    "saida": "ok",
+    "sensor": "sem teste automatizado (script do kit)",
+    "passou": True,
+    "assertion": "n/a",
+    "perfil": "n/a",
+}
+ITEM_DO_REVISOR = {
+    "numero": "Fidelidade à origem",
+    "comando": "leitura da SPEC-ZERO-0001 contra a SDD",
+    "saida": "nenhum critério relaxado; contratos iguais",
+    "sensor": "sem teste automatizado",
+    "passou": True,
+    "assertion": "n/a",
+    "perfil": "manual",
+}
+
+
+def test_fidelidade_linhas_extras_antes_das_do_revisor(repo):
+    caminho = registrar_evidencia(repo, CAMINHO, VALIDACAO, "a", "b", [LINHA_MECANICA])
+    for arquivo in (repo / CAMINHO, repo / caminho):
+        texto = arquivo.read_text(encoding="utf-8")
+        mecanica = texto.index("| Fidelidade à origem (check_source_docs) |")
+        assert mecanica < texto.index("falhou com a soma invertida")
+
+
+def sdd_enxuta_de_politica(tmp_path):
+    import copy
+
+    from adapters.doc_traceability.redacao import aprovar_por_politica, escrever_sdd
+    from tests.test_redacao import ENXUTO
+    from tests.test_redacao import registry as registry_da_redacao
+
+    repo = tmp_path / "repo"
+    registry_da_redacao(repo, "2.7.0")
+    sdd = copy.deepcopy(ENXUTO)
+    sdd["requisitos"].append(sdd["requisitos"][0] | {"id": "RF02", "requisito": "Remover"})
+    origens = [
+        {"id": "SPEC-ZERO-0001", "url": "https://h/blob/main/docs/ZERO/03-spec/SPEC-ZERO-0001.md"}
+    ]
+    caminho = escrever_sdd(
+        repo, sdd, "ZERO", "Dona", "2026-11-24", "approved", "2.7.0", origens=origens
+    )
+    aprovar_por_politica(repo, caminho, Framework(), "2026-11-24T00:00:00Z")
+    return repo, caminho
+
+
+@sem_framework
+def test_fidelidade_sdd_enxuta_chega_a_implemented_no_validate_state_real(tmp_path):
+    repo, caminho = sdd_enxuta_de_politica(tmp_path)
+    validacao = VALIDACAO | {"criterios": [ITEM_DO_REVISOR, *VALIDACAO["criterios"]]}
+    fonte = FonteDocTraceability(Framework())
+    problemas = fonte.registrar_verificacao(
+        repo, caminho, validacao, "a", "b", linhas_extras=[LINHA_MECANICA]
+    )
+    assert problemas == []
+    texto = (repo / caminho).read_text(encoding="utf-8")
+    assert "status: implemented" in texto
+    assert "| Fidelidade à origem (check_source_docs) |" in texto
+
+
+@sem_framework
+def test_fidelidade_sem_as_duas_linhas_o_validate_state_real_recusa(tmp_path):
+    repo, caminho = sdd_enxuta_de_politica(tmp_path)
+    problemas = FonteDocTraceability(Framework()).registrar_verificacao(
+        repo, caminho, VALIDACAO, "a", "b"
+    )
+    assert any("RF04, SPEC-DTF-0014" in p for p in problemas), problemas

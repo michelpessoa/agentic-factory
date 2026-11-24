@@ -24,28 +24,39 @@ def _celula(texto: str) -> str:
     return limpo[:LIMITE_CELULA]
 
 
-def _linhas(validacao: dict) -> str:
+def _linhas(criterios) -> str:
     return "".join(
         f"| {_celula(c['numero'])} | `{_celula(c['comando'])}` | {_celula(c['saida'])} | "
         f"{_celula(c['sensor'])} | {'Sim' if c['passou'] else 'Não'} | "
         f"{_celula(c['assertion'])} | {_celula(c['perfil'])} |\n"
-        for c in validacao["criterios"]
+        for c in criterios
     )
 
 
-def registrar_evidencia(repo: Path, caminho_sdd: str, validacao: dict, base: str, head: str) -> str:
-    """Passa a SDD para `implemented`. Devolve o caminho do relatório de validação."""
+def registrar_evidencia(
+    repo: Path,
+    caminho_sdd: str,
+    validacao: dict,
+    base: str,
+    head: str,
+    linhas_extras: list[dict] = (),
+) -> str:
+    """Passa a SDD para `implemented`. Devolve o caminho do relatório de validação.
+
+    `linhas_extras` (a linha mecânica da fidelidade à origem) vêm antes das do revisor.
+    """
     if validacao["status"] != "aprovado":
         raise ValueError("só verificação aprovada vira evidência")
     arquivo = repo / caminho_sdd
     texto = arquivo.read_text(encoding="utf-8")
     sdd_id = yaml.safe_load(texto.split("---\n", 2)[1])["id"]
+    tabela = _linhas([*linhas_extras, *validacao["criterios"]])
 
     secao = (
         "## Evidência de verificação (preencher antes de status `implemented`)\n\n"
         f"Verificação independente em `validation-{sdd_id}.md`. Veredito: **PASS**.\n\n"
         "**Verificador independente:** sim\n\n"
-        f"{CABECALHO}{_linhas(validacao)}\n"
+        f"{CABECALHO}{tabela}\n"
     )
     texto, trocas = SECAO_EVIDENCIA_RE.subn(lambda _: secao, texto, count=1)
     if trocas != 1:
@@ -65,7 +76,7 @@ def registrar_evidencia(repo: Path, caminho_sdd: str, validacao: dict, base: str
         "- **Veredito:** PASS\n"
         f"- **Diff verificado:** {base}..{head}\n"
         "- **Verificador independente:** sim\n\n"
-        f"{CABECALHO}{_linhas(validacao)}\n"
+        f"{CABECALHO}{tabela}\n"
         f"## Descompassos encontrados\n\n{descompassos}\n",
         encoding="utf-8",
     )

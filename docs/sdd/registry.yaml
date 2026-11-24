@@ -1,0 +1,124 @@
+project: "FAB"
+framework_version: "2.5.0"
+repository: "https://github.com/michelpessoa/fabrica-agentica"
+documents:
+  - id: SDD-FAB-0001
+    type: SDD
+    title: "Leitura do central: framework fixado em 2.5.0, caminho do central por projeto e validadores lidos pelo --json do executor_contract"
+    status: implemented
+    owner: "Michel Pessoa"
+    created: "2026-11-17"
+    updated: "2026-11-17"
+    relates_to: []
+    path: "docs/sdd/SDD-FAB-0001.md"
+    tags: [integracao, executor, central, framework-fixado, executor-contract]
+  - id: SDD-FAB-0002
+    type: SDD
+    title: "Regras do framework na entrada e origem do central na descoberta: sizing, documentos por nível, ciclo de status e --origem"
+    status: implemented
+    owner: "Michel Pessoa"
+    created: "2026-11-17"
+    updated: "2026-11-17"
+    relates_to: [SDD-FAB-0001]
+    path: "docs/sdd/SDD-FAB-0002.md"
+    tags: [integracao, executor, central, sizing, status-lifecycle, origem, descoberta]
+  - id: SDD-FAB-0003
+    type: SDD
+    title: "Escrita no central: rascunho de SPEC ou RFC por PR na descoberta e aprovação pela review, com approved_by gravado antes do merge"
+    status: implemented
+    owner: "Michel Pessoa"
+    created: "2026-11-18"
+    updated: "2026-11-19"
+    relates_to: [SDD-FAB-0001, SDD-FAB-0002]
+    path: "docs/sdd/SDD-FAB-0003.md"
+    tags: [integracao, executor, central, escrita, aprovacao, review, approved_by, descoberta]
+  - id: SDD-FAB-0004
+    type: SDD
+    title: "Progresso da descoberta no terminal: em que etapa do fluxo a sessão está e por quê, por eventos do núcleo e texto do CLI"
+    status: implemented
+    owner: "Michel Pessoa"
+    created: "2026-11-19"
+    updated: "2026-11-19"
+    relates_to: [SDD-FAB-0003]
+    path: "docs/sdd/SDD-FAB-0004.md"
+    tags: [descoberta, terminal, progresso, cli, sdlc]
+  - id: SDD-FAB-0005
+    type: SDD
+    title: "SDD enxuta na fábrica: descoberta com origem escreve requisitos por referência em projeto sob 2.7.0, compilador lê a Parte 2 e o EARS da SPEC no central, e framework 2.7.0"
+    status: implemented
+    owner: "Michel Pessoa"
+    created: "2026-11-20"
+    updated: "2026-11-21"
+    relates_to: [SDD-FAB-0002, SDD-FAB-0003]
+    path: "docs/sdd/SDD-FAB-0005.md"
+    tags: [documentacao-enxuta, sdd, compilador, descoberta, framework-fixado, fabrica-agentica]
+  - id: SDD-FAB-0006
+    type: SDD
+    title: "SPEC da descoberta com as linhas '# Parte 1' e '# Parte 2' do template, para o compilador da SDD enxuta ler o desenho"
+    status: implemented
+    owner: "Michel Pessoa"
+    created: "2026-11-20"
+    updated: "2026-11-21"
+    relates_to: [SDD-FAB-0003, SDD-FAB-0005]
+    path: "docs/sdd/SDD-FAB-0006.md"
+    tags: [descoberta, central, spec, documentacao-enxuta, compilador, fabrica-agentica]
+  - id: SDD-FAB-0007
+    type: SDD
+    title: "Tabela de Requisitos funcionais da SPEC com o cabeçalho do template, para o EARS do kit ler o critério na 3ª coluna"
+    status: implemented
+    owner: "Michel Pessoa"
+    created: "2026-11-20"
+    updated: "2026-11-21"
+    relates_to: [SDD-FAB-0003, SDD-FAB-0006]
+    path: "docs/sdd/SDD-FAB-0007.md"
+    tags: [descoberta, central, spec, ears, fabrica-agentica]
+  - id: SDD-FAB-0008
+    type: SDD
+    title: "Registry do projeto com documents em fluxo: a redação passa o documents para bloco antes de acrescentar a SDD nova, para o registry seguir YAML válido"
+    status: implemented
+    owner: "Michel Pessoa"
+    created: "2026-11-21"
+    updated: "2026-11-21"
+    relates_to: [SDD-FAB-0005]
+    path: "docs/sdd/SDD-FAB-0008.md"
+    tags: [descoberta, registry, redacao, yaml, fabrica-agentica]
+  - id: SDD-FAB-0009
+    type: SDD
+    title: "Vigia do central na fábrica: PR de documento conferida sozinha, SPEC aprovada compilada em SDD aprovada por política, entrada pela política e framework 2.8.0"
+    status: implemented
+    owner: "Michel Pessoa"
+    created: "2026-11-21"
+    updated: "2026-11-21"
+    relates_to: [SDD-FAB-0005, SDD-FAB-0006, SDD-FAB-0007, SDD-FAB-0008]
+    path: "docs/sdd/SDD-FAB-0009.md"
+    tags: [vigia, central, compilacao, approval_policy, descoberta, pipeline, framework-fixado, fabrica-agentica]
+  - id: SDD-FAB-0010
+    type: SDD
+    title: "Correções do vigia do central depois da verificação e do A13 da SDD-FAB-0009: sensor do hash com o adaptador real, número da PR no aviso, etiqueta na PR do central, merge da fábrica na entrada por política e vigia que não cai sem a base"
+    status: implemented
+    owner: "Michel Pessoa"
+    created: "2026-11-23"
+    updated: "2026-11-23"
+    relates_to: [SDD-FAB-0009]
+    path: "docs/sdd/SDD-FAB-0010.md"
+    tags: [vigia, central, approval_policy, pipeline, entrada, publicacao, verificacao, fabrica-agentica]
+  - id: SDD-FAB-0011
+    type: SDD
+    title: "Correções pequenas do vigia e da descoberta: número da PR da base no aviso com teste que discrimina e branch da PR da base sem o prefixo duplicado"
+    status: approved
+    owner: "Michel Pessoa"
+    created: "2026-11-24"
+    updated: "2026-11-24"
+    relates_to: [SDD-FAB-0009, SDD-FAB-0010]
+    path: "docs/sdd/SDD-FAB-0011.md"
+    tags: [vigia, descoberta, avisos, publicacao, verificacao, fabrica-agentica]
+  - id: SDD-FAB-0012
+    type: SDD
+    title: "Passo 0 do verify-sdd na verificação da fábrica: SDD enxuta com source_docs chega a implemented com a linha \"Fidelidade à origem\""
+    status: approved
+    owner: "Michel Pessoa"
+    created: "2026-11-24"
+    updated: "2026-11-24"
+    relates_to: [SDD-FAB-0009, SDD-FAB-0011]
+    path: "docs/sdd/SDD-FAB-0012.md"
+    tags: [verificacao, verify-sdd, fidelidade-a-origem, check_source_docs, pipeline, revisor, fabrica-agentica]

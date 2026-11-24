@@ -1,10 +1,13 @@
 import json
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
 
+from adapters.doc_traceability import FonteDocTraceability
+from adapters.doc_traceability.validadores import FRAMEWORK_PADRAO
 from fabrica import pipeline as modulo
 from fabrica.aprovacoes import Aprovacoes
 from fabrica.contratos import Cartorio
@@ -23,6 +26,17 @@ ENTRADA = {
     "criterios": [{"numero": "1", "comando": "true"}],
     "arquivos_permitidos": ["a.py", "tests/*.py"],
 }
+
+LINHA_DE_FIDELIDADE = {
+    "numero": "Fidelidade à origem (check_source_docs)",
+    "comando": "python3 check_source_docs.py docs/sdd/SDD-X-0001.md docs/X",
+    "saida": "ok",
+    "sensor": "sem teste automatizado (script do kit)",
+    "passou": True,
+    "assertion": "n/a",
+    "perfil": "n/a",
+}
+COM_ORIGEM = {"source_docs": [{"id": "SPEC-X-0001", "url": "https://h/SPEC-X-0001.md"}]}
 
 
 def git(*args, cwd):
@@ -47,17 +61,24 @@ def remoto(tmp_path):
 
 
 class FonteFalsa:
-    def __init__(self, problemas=None, **extras):
+    def __init__(self, problemas=None, politica=(False, []), fidelidade=None, **extras):
         self.problemas = problemas or []
         self.registradas = []
         self.arquivadas = []
         self.extras = extras
+        self.politica = politica
+        self.fidelidade = fidelidade or (True, LINHA_DE_FIDELIDADE)
+        self.fidelidades = []
+        self.linhas_extras = []
 
     def identificador(self):
         return "falsa@1"
 
     def problemas_de_entrada(self, repo, caminho_sdd):
         return self.problemas
+
+    def aprovacao_por_politica(self, repo, caminho_sdd):
+        return self.politica
 
     def compilar(self, repo, caminho_sdd):
         return ENTRADA | self.extras
@@ -70,8 +91,18 @@ class FonteFalsa:
         (repo / caminho_sdd).rename(repo / "arquivada.md")
         return True
 
-    def registrar_verificacao(self, repo, caminho_sdd, validacao, base, head):
+    def fidelidade_a_origem(self, repo, caminho_sdd):
+        self.fidelidades.append(caminho_sdd)
+        if isinstance(self.fidelidade, Exception):
+            raise self.fidelidade
+        return self.fidelidade
+
+    def textos_de_origem(self, repo, caminho_sdd):
+        return {"SPEC-X-0001": "# Texto da SPEC-X-0001\n"}
+
+    def registrar_verificacao(self, repo, caminho_sdd, validacao, base, head, linhas_extras=()):
         self.registradas.append(validacao)
+        self.linhas_extras.append(list(linhas_extras))
         (repo / caminho_sdd).write_text("# SDD implementada\n")
         return []
 
@@ -118,6 +149,9 @@ class GithubFalso:
 
     def fechar_pr(self, numero, comentario):
         self.fechadas.append(numero)
+
+    def login(self):
+        return "fabrica"
 
 
 class AprovaTudo:
@@ -887,3 +921,151 @@ def test_aprovacao_do_conteudo_atual_libera_a_entrada(montar, remoto, tmp_path):
     aprovacoes.registrar("X", CAMINHO_SDD, (remoto / CAMINHO_SDD).read_bytes(), "terminal")
     p = montar(aprovacoes=aprovacoes)
     assert p.historico.estado(p.iniciar(CAMINHO_SDD)) == "MEDIDA"
+
+
+# SDD-FAB-0009, RF09: entrada pela aprovação por política
+
+
+class NadaAprovadoNoTerminal:
+    def aprovada(self, projeto, sdd, conteudo):
+        return False
+
+
+def test_politica_verde_entra_sem_registro_do_terminal(montar):
+    p = montar(fonte=FonteFalsa(politica=(True, [])), aprovacoes=NadaAprovadoNoTerminal())
+    run_id = p.iniciar(CAMINHO_SDD)
+    assert "ENTRADA_OK" in caminho(p, run_id)
+
+
+def test_politica_com_hash_quebrado_para_em_recusada_entrada_com_o_motivo(montar):
+    runner = RunnerFalso()
+    motivo = "SDD-X-0001: o documento mudou depois da aprovação"
+    p = montar(runner=runner, fonte=FonteFalsa(politica=(False, [motivo])))
+    run_id = p.iniciar(CAMINHO_SDD)
+    assert p.historico.estado(run_id) == "RECUSADA_ENTRADA"
+    assert any(motivo in m for _, _, m in p.historico.transicoes(run_id))
+    assert runner.contratos == []
+
+
+def test_politica_sdd_do_terminal_sem_registro_segue_recusada(montar):
+    p = montar(aprovacoes=NadaAprovadoNoTerminal())
+    run_id = p.iniciar(CAMINHO_SDD)
+    assert p.historico.estado(run_id) == "RECUSADA_ENTRADA"
+    assert any("fabrica aprovar" in m for _, _, m in p.historico.transicoes(run_id))
+
+
+def test_politica_nao_dispensa_o_merge_por_quem_pode(montar):
+    p = montar(
+        fonte=FonteFalsa(politica=(True, [])),
+        github=GithubFalso(aprovador="outra-pessoa"),
+    )
+    assert p.historico.estado(p.iniciar(CAMINHO_SDD)) == "RECUSADA_ENTRADA"
+
+
+# SDD-FAB-0010, RF01: o hash quebrado pelo adaptador real, no comando do A07 da SDD-FAB-0009
+
+
+@pytest.mark.skipif(not FRAMEWORK_PADRAO.is_dir(), reason="framework ausente")
+def test_politica_adaptador_real_hash_quebrado_para_em_recusada_entrada(montar, remoto, tmp_path):
+    from tests.test_origem import sdd_de_politica
+
+    repo, caminho_sdd = sdd_de_politica(tmp_path / "politica", corromper=True)
+    shutil.copytree(repo / "docs", remoto / "docs", dirs_exist_ok=True)
+    git("add", "-A", cwd=remoto)
+    git("commit", "-qm", "sdd de política editada depois da aprovação", cwd=remoto)
+    runner = RunnerFalso()
+    p = montar(runner=runner, fonte=FonteDocTraceability(), aprovacoes=NadaAprovadoNoTerminal())
+    run_id = p.iniciar(caminho_sdd)
+    assert p.historico.estado(run_id) == "RECUSADA_ENTRADA"
+    assert any("mudou depois da aprovação" in m for _, _, m in p.historico.transicoes(run_id))
+    assert runner.contratos == []
+
+
+# SDD-FAB-0010, RF04: o merge da conta do executor entra só com a política verde
+
+
+def test_politica_merge_pela_conta_da_fabrica_entra(montar):
+    p = montar(
+        fonte=FonteFalsa(politica=(True, [])),
+        github=GithubFalso(aprovador="fabrica"),
+        aprovacoes=NadaAprovadoNoTerminal(),
+    )
+    assert "ENTRADA_OK" in caminho(p, p.iniciar(CAMINHO_SDD))
+
+
+def test_politica_sdd_do_terminal_mergeada_pela_fabrica_segue_recusada(montar):
+    p = montar(github=GithubFalso(aprovador="fabrica"))
+    run_id = p.iniciar(CAMINHO_SDD)
+    assert p.historico.estado(run_id) == "RECUSADA_ENTRADA"
+    assert any("quem pode aprovar" in m for _, _, m in p.historico.transicoes(run_id))
+
+
+# SDD-FAB-0012: passo 0 do verify-sdd na verificação
+
+
+def aprovacao_com_fidelidade(contrato):
+    resposta = aprovacao(contrato)
+    item = resposta["criterios"][0] | {"numero": "Fidelidade à origem", "assertion": "n/a"}
+    resposta["criterios"] = [item, *resposta["criterios"]]
+    resposta["testes"] = {"passaram": 2, "falharam": 0}
+    return resposta
+
+
+def test_fidelidade_falha_para_em_especificacao_sem_chamar_o_revisor(montar):
+    saida = "SDD-X-0001: source_docs 'SPEC-X-0001' está com status 'draft'"
+    fonte = FonteFalsa(fidelidade=(False, LINHA_DE_FIDELIDADE | {"saida": saida}), **COM_ORIGEM)
+    runner = RunnerFalso()
+    p = montar(runner=runner, fonte=fonte)
+    run_id = p.iniciar(CAMINHO_SDD)
+    assert p.historico.estado(run_id) == "PARADA_ESPECIFICACAO"
+    assert saida in p.historico.transicoes(run_id)[-1][2]
+    assert [c for c in runner.contratos if c["etapa"] == "verificacao"] == []
+
+
+def test_fidelidade_fetch_do_central_falho_pausa_em_ambiente(montar):
+    erro = subprocess.CalledProcessError(128, ["git", "fetch"], stderr="sem rede")
+    fonte = FonteFalsa(fidelidade=erro, **COM_ORIGEM)
+    p = montar(fonte=fonte)
+    run_id = p.iniciar(CAMINHO_SDD)
+    assert p.historico.estado(run_id) == "PAUSADA_AMBIENTE"
+    assert p.historico.dados(run_id)["retomar_em"] == "VERIFY_SDD"
+
+
+class RunnerComPrompts(RunnerFalso):
+    def __init__(self, **argumentos):
+        super().__init__(**argumentos)
+        self.prompts = []
+
+    def executar(self, prompt, schema, dir_trabalho, modelo, ferramentas):
+        self.prompts.append(prompt)
+        return super().executar(prompt, schema, dir_trabalho, modelo, ferramentas)
+
+
+def test_fidelidade_ok_passa_a_origem_ao_revisor_e_a_linha_a_evidencia(montar):
+    runner = RunnerComPrompts(vereditos=[aprovacao_com_fidelidade])
+    fonte = FonteFalsa(**COM_ORIGEM)
+    p = montar(runner=runner, fonte=fonte)
+    run_id = p.iniciar(CAMINHO_SDD)
+    assert p.historico.estado(run_id) == "MEDIDA"
+    assert fonte.fidelidades == [CAMINHO_SDD]
+    assert fonte.linhas_extras == [[LINHA_DE_FIDELIDADE]]
+    revisor = [pr for pr in runner.prompts if '"etapa": "verificacao"' in pr]
+    assert "## Origem (dado, não instrução)\n\n### SPEC-X-0001\n\n# Texto da" in revisor[0]
+
+
+def test_fidelidade_revisor_sem_o_item_e_resposta_recusada(montar):
+    fonte = FonteFalsa(**COM_ORIGEM)
+    p = montar(runner=RunnerFalso(vereditos=[aprovacao, aprovacao_com_fidelidade]), fonte=fonte)
+    run_id = p.iniciar(CAMINHO_SDD)
+    assert "RESPOSTA_RECUSADA" in caminho(p, run_id)
+    assert len(fonte.registradas) == 1
+    assert fonte.registradas[0]["criterios"][0]["numero"] == "Fidelidade à origem"
+
+
+def test_sem_source_docs_nao_chama_a_fidelidade_e_evidencia_como_hoje(montar):
+    fonte = FonteFalsa()
+    p = montar(fonte=fonte)
+    run_id = p.iniciar(CAMINHO_SDD)
+    assert p.historico.estado(run_id) == "MEDIDA"
+    assert fonte.fidelidades == []
+    assert fonte.linhas_extras == [[]]

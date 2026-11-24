@@ -15,5 +15,7 @@ Como usar: [guia.md](guia.md).
 | [ADR-0008](adr/ADR-0008-manter-decisor-do-mvp.md) | Manter o decisor do MVP, sem Strands Decider | aceita |
 | [ADR-0009](adr/ADR-0009-sizing-como-piso-de-risco.md) | Sizing como piso de risco | aceita |
 | [ADR-0010](adr/ADR-0010-descoberta-e-aprovacao-no-terminal.md) | Descoberta e aprovação no terminal | aceita |
+| [ADR-0011](adr/ADR-0011-notificacao-por-email-e-teams.md) | Notificação por e-mail e Teams | aceita |
+| [ADR-0012](adr/ADR-0012-executora-do-fluxo-do-framework.md) | Fábrica como executora do fluxo do framework | aceita |
 
 ADR aceito é imutável: mudança gera novo ADR com `substitui`. [Comparação de decisores](relatorios/comparacao-decisores.md). [Lições](licoes.md). [Propostas ao framework](propostas-framework/README.md).

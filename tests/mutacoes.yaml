@@ -78,8 +78,8 @@
 - arquivo: fabrica/pipeline.py
   teste: tests/test_pipeline.py
   descricao: aprovador da SDD não é conferido
-  procurar: 'if aprovador not in self.projeto.permitidos:'
-  trocar: 'if False:'
+  procurar: 'if aprovador not in self.projeto.permitidos and not ('
+  trocar: 'if False and not ('
 - arquivo: fabrica/pipeline.py
   teste: tests/test_pipeline.py
   descricao: limite de tentativas ignorado
@@ -218,8 +218,8 @@
 - arquivo: fabrica/pipeline.py
   teste: tests/test_pipeline.py
   descricao: pipeline aceita SDD sem aprovação no terminal
-  procurar: 'if not self.aprovacoes.aprovada(self.projeto.codigo, caminho_sdd, conteudo):'
-  trocar: 'if False:'
+  procurar: 'if not por_politica and not self.aprovacoes.aprovada('
+  trocar: 'if False and not self.aprovacoes.aprovada('
 - arquivo: fabrica/aprovacoes.py
   teste: tests/test_pipeline.py
   descricao: aprovação deixa de valer só para o conteúdo aprovado
@@ -228,8 +228,8 @@
 - arquivo: fabrica/vigia.py
   teste: tests/test_vigia.py
   descricao: vigia dispara SDD sem aprovação no terminal
-  procurar: 'if not primeira_leitura and not self._aprovacoes.aprovada('
-  trocar: 'if False and not self._aprovacoes.aprovada('
+  procurar: 'and not self._aprovacoes.aprovada(self._projeto, sdd, conteudo)'
+  trocar: 'and False'
 - arquivo: fabrica/__main__.py
   teste: tests/test_descoberta.py
   descricao: aprovar aceita entrada que não vem de terminal
@@ -243,8 +243,8 @@
 - arquivo: fabrica/descoberta.py
   teste: tests/test_descoberta.py
   descricao: aprovação registrada não é a do conteúdo publicado
-  procurar: 'self.projeto.codigo, caminho, (copia / caminho).read_bytes(), f"descoberta {sessao}"'
-  trocar: 'self.projeto.codigo, caminho, dados["sdd_id"].encode(), f"descoberta {sessao}"'
+  procurar: 'self.projeto.codigo, caminho, (copia / caminho).read_bytes(),'
+  trocar: 'self.projeto.codigo, caminho, dados["sdd_id"].encode(),'
 - arquivo: fabrica/publicacao.py
   teste: tests/test_publicacao.py
   descricao: release mergeada sem tag reabre o mesmo número
@@ -260,3 +260,117 @@
   descricao: historico mostra o token do contrato
   procurar: 'if k != "token"}'
   trocar: '}'
+- arquivo: fabrica/notificacao.py
+  teste: tests/test_notificacao.py
+  descricao: arquivo com segredo legível pelo grupo
+  procurar: 'stat.S_IRWXG | stat.S_IRWXO'
+  trocar: 'stat.S_IRWXO'
+- arquivo: fabrica/notificacao.py
+  teste: tests/test_notificacao.py
+  descricao: e-mail faz login sem cifrar
+  procurar: 'smtp.starttls()'
+  trocar: 'pass'
+- arquivo: fabrica/notificacao.py
+  teste: tests/test_notificacao.py
+  descricao: falha de canal grava a mensagem do erro, que pode ter segredo
+  procurar: '{type(erro).__name__}"'
+  trocar: '{erro}"'
+- arquivo: fabrica/notificacao.py
+  teste: tests/test_notificacao.py
+  descricao: webhook do Teams aceita http
+  procurar: 'if not url.startswith("https://"):'
+  trocar: 'if False:'
+- arquivo: adapters/doc_traceability/validadores.py
+  teste: tests/test_framework_versao.py
+  descricao: versão divergente do framework passa
+  procurar: 'if atual != exigida:'
+  trocar: 'if False:'
+- arquivo: adapters/doc_traceability/validadores.py
+  teste: tests/test_framework_versao.py
+  descricao: projeto sem versão do framework passa
+  procurar: 'if not exigida:'
+  trocar: 'if False:'
+# SDD-FAB-0009: vigia do central
+- arquivo: adapters/doc_traceability/central.py
+  teste: tests/test_vigia_central.py
+  descricao: PR de outra conta conta como da fábrica (RF04)
+  procurar: 'and pr["user"]["login"] == login'
+  trocar: 'and True'
+- arquivo: adapters/doc_traceability/central.py
+  teste: tests/test_vigia_central.py
+  descricao: SPEC aprovada por política dispara compilação (RF05)
+  procurar: 'if approved_by.get("kind") != "human":'
+  trocar: 'if False:'
+- arquivo: fabrica/vigia.py
+  teste: tests/test_vigia_central.py
+  descricao: primeira leitura do central compila o que já existe (RF05)
+  procurar: 'if not self._ver_spec(spec_id, content_sha256) or primeira_leitura:'
+  trocar: 'if not self._ver_spec(spec_id, content_sha256):'
+- arquivo: fabrica/vigia.py
+  teste: tests/test_vigia_central.py
+  descricao: SPEC já em source_docs é compilada de novo (RF06)
+  procurar: '            if sdd:'
+  trocar: '            if False:'
+- arquivo: fabrica/vigia.py
+  teste: tests/test_vigia_central.py
+  descricao: aviso repetido sai a cada ciclo (RF10)
+  procurar: 'if cursor.rowcount != 1:'
+  trocar: 'if False:'
+- arquivo: fabrica/descoberta.py
+  teste: tests/test_descoberta.py
+  descricao: sessão interativa publica por política (RF08)
+  procurar: 'if not self.dados(sessao).get("automatica"):'
+  trocar: 'if False:'
+- arquivo: adapters/doc_traceability/__init__.py
+  teste: tests/test_origem.py
+  descricao: SDD de política entra sem o validate_state (RF09)
+  procurar: 'return (True, []) if estado.ok else (False, list(estado.problemas))'
+  trocar: 'return (True, [])'
+- arquivo: fabrica/pipeline.py
+  teste: tests/test_pipeline.py
+  descricao: SDD de política com hash quebrado entra (RF09)
+  procurar: '        if motivos:'
+  trocar: '        if False:'
+# SDD-FAB-0010: correções do vigia do central
+- arquivo: fabrica/vigia.py
+  teste: tests/test_vigia_central.py
+  descricao: aviso de PR do central sem o número da PR (RF02)
+  procurar: 'str(erro), numero)'
+  trocar: 'str(erro), None)'
+- arquivo: fabrica/publicacao.py
+  teste: tests/test_publicacao.py
+  descricao: PR de documento do central sai sem a etiqueta (RF03)
+  procurar: 'self._etiquetar(numero_do_documento)'
+  trocar: 'pass'
+- arquivo: fabrica/pipeline.py
+  teste: tests/test_pipeline.py
+  descricao: entrada sem permitidos dispensa a conferência de quem mergeou (RF04)
+  procurar: "not (\n            por_politica and aprovador == self.github.login()\n        )"
+  trocar: 'True'
+# SDD-FAB-0011: aviso da PR da base e branch da PR da base
+- arquivo: fabrica/vigia.py
+  teste: tests/test_vigia_central.py
+  descricao: aviso da publicação da SDD compilada sem o número da PR (RF01)
+  procurar: 'self._avisar(notificador, spec_id, str(erro), pr)'
+  trocar: 'self._avisar(notificador, spec_id, str(erro), None)'
+- arquivo: fabrica/descoberta.py
+  teste: tests/test_descoberta.py
+  descricao: branch da PR da base com o prefixo sdd- duplicado (RF02)
+  procurar: 'ramo = f"feature/{sdd_id.lower()}-{sessao[:8]}"'
+  trocar: 'ramo = f"feature/sdd-{sdd_id.lower()}-{sessao[:8]}"'
+# SDD-FAB-0012: passo 0 do verify-sdd na verificação
+- arquivo: fabrica/pipeline.py
+  teste: tests/test_pipeline.py
+  descricao: fidelidade à origem reprovada segue para o revisor (RF01)
+  procurar: 'if not ok:'
+  trocar: 'if False:'
+- arquivo: fabrica/verificacao.py
+  teste: tests/test_verificacao.py
+  descricao: resposta do revisor sem o item Fidelidade à origem é aceita (RF02)
+  procurar: 'problemas += problemas_de_fidelidade(validacao)'
+  trocar: 'pass'
+- arquivo: adapters/doc_traceability/evidencia.py
+  teste: tests/test_evidencia.py
+  descricao: evidência ignora as linhas_extras (RF03)
+  procurar: 'tabela = _linhas([*linhas_extras, *validacao["criterios"]])'
+  trocar: 'tabela = _linhas(validacao["criterios"])'

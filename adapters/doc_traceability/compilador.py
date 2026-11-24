@@ -17,6 +17,7 @@ _PIPE_ESCAPADO = "\\|"
 _SENTINELA = "\x00"
 SEM_COMANDO = {"", "n/a", "-", "—"}
 DIR_MOLDES = "docs/fabrica/moldes"
+LEAN_COLUNAS = ["rf-id", "origem", "requisito (resumo)", "arquivos"]
 
 
 class SddInvalida(Exception):
@@ -188,7 +189,104 @@ def _molde(raiz_projeto: Path | None, nome: str | None, problemas: list[str]) ->
     return caminho.read_text(encoding="utf-8")
 
 
-def compilar_sdd(caminho: Path, raiz_projeto: Path | None = None) -> dict:
+def _enxuta(frente: dict, corpo: str) -> bool:
+    """SDD enxuta: tem origem e a tabela de requisitos por referência, como no kit 2.7.0."""
+    tabela = primeira_tabela(secao(corpo, "Requisitos consolidados"))
+    return (
+        bool(frente.get("source_docs"))
+        and tabela is not None
+        and (tabela.cabecalho == LEAN_COLUNAS)
+    )
+
+
+def _fora_de_cercas(texto: str, padrao: str) -> list[re.Match]:
+    """As linhas que casam `padrao` e não estão dentro de uma cerca de código."""
+    cercas = [m.span() for m in re.finditer(r"^```.*?^```[ \t]*$", texto, re.MULTILINE | re.DOTALL)]
+    return [
+        m
+        for m in re.finditer(padrao, texto, re.MULTILINE)
+        if not any(inicio <= m.start() < fim for inicio, fim in cercas)
+    ]
+
+
+def _parte_2(texto: str) -> str | None:
+    """Da linha `# Parte 2` até o fim, sem a seção de autorrevisão, com as cercas intactas."""
+    achados = _fora_de_cercas(texto, r"^# Parte 2.*$")
+    if not achados:
+        return None
+    parte = texto[achados[0].start() :]
+    cabecalhos = _fora_de_cercas(parte, r"^#{1,2} .*$")
+    trechos, inicio = [], 0
+    for i, cabecalho in enumerate(cabecalhos):
+        if cabecalho.group().startswith("## Autorrevis"):
+            fim = cabecalhos[i + 1].start() if i + 1 < len(cabecalhos) else len(parte)
+            trechos.append(parte[inicio : cabecalho.start()])
+            inicio = fim
+    trechos.append(parte[inicio:])
+    return "".join(trechos).strip()
+
+
+def _decisao(texto: str) -> str | None:
+    return secao(texto, "Decisão")
+
+
+def _rf(rf: str) -> str:
+    return rf.replace("-", "")
+
+
+def _aceites(texto: str) -> dict[str, str]:
+    tabela = primeira_tabela(secao(texto, "Requisitos funcionais"))
+    if tabela is None:
+        return {}
+    i_id = tabela.indice("rf-id", "rf")
+    i_criterio = tabela.indice("criterio")
+    return {_rf(_celula(linha, i_id)): _celula(linha, i_criterio) for linha in tabela.linhas}
+
+
+def _origem_da_linha(corpo: str) -> dict[str, str]:
+    tabela = primeira_tabela(secao(corpo, "Requisitos consolidados"))
+    if tabela is None:
+        return {}
+    i_id, i_origem = tabela.indice("rf-id"), tabela.indice("origem")
+    return {_celula(linha, i_id): _celula(linha, i_origem) for linha in tabela.linhas}
+
+
+def _resolver_referencia(
+    frente: dict, corpo: str, requisitos: list[dict], origens: dict[str, str], problemas: list[str]
+) -> str:
+    """Monta `especificacao` e preenche o `aceite` de cada requisito com o texto do central."""
+    ids = [str(d.get("id")) for d in frente.get("source_docs") or [] if isinstance(d, dict)]
+    for doc_id in ids:
+        if doc_id not in origens:
+            problemas.append(f"origem {doc_id} não está no clone do central")
+    blocos = []
+    for doc_id in [i for i in ids if i.startswith("SPEC-") and i in origens]:
+        bloco = _parte_2(origens[doc_id])
+        if bloco is None:
+            problemas.append(f"{doc_id} sem '# Parte 2'")
+        else:
+            blocos.append(f"# {doc_id}\n\n{bloco}")
+    for doc_id in [i for i in ids if i.startswith("ADR-") and i in origens]:
+        bloco = _decisao(origens[doc_id])
+        if bloco is None:
+            problemas.append(f"{doc_id} sem seção 'Decisão'")
+        else:
+            blocos.append(f"# {doc_id}\n\n{bloco}")
+    origem_de = _origem_da_linha(corpo)
+    for requisito in requisitos:
+        rf, spec = requisito["id"], origem_de.get(requisito["id"], "")
+        aceite = _aceites(origens[spec]).get(_rf(rf)) if spec in origens else None
+        if aceite is None:
+            if spec in origens:
+                problemas.append(f"{rf} sem critério de aceite em {spec}")
+            continue
+        requisito["aceite"] = aceite
+    return "\n\n".join(blocos)
+
+
+def compilar_sdd(
+    caminho: Path, raiz_projeto: Path | None = None, origens: dict[str, str] | None = None
+) -> dict:
     """Devolve a entrada do contrato ou levanta SddInvalida com todos os problemas."""
     texto = caminho.read_text(encoding="utf-8")
     achado = FRONTMATTER_RE.match(texto)
@@ -209,6 +307,9 @@ def compilar_sdd(caminho: Path, raiz_projeto: Path | None = None) -> dict:
     molde = _molde(raiz_projeto, frente.get("molde"), problemas)
     if not arquivos:
         problemas.append("sem lista de arquivos: o gate de escopo não teria como conferir")
+    especificacao = secao(corpo, "Especificação técnica consolidada") or ""
+    if _enxuta(frente, corpo):
+        especificacao = _resolver_referencia(frente, corpo, requisitos, origens or {}, problemas)
     if problemas:
         raise SddInvalida(problemas)
 
@@ -221,7 +322,7 @@ def compilar_sdd(caminho: Path, raiz_projeto: Path | None = None) -> dict:
         "requisitos": requisitos,
         "criterios": criterios,
         "arquivos_permitidos": arquivos,
-        "especificacao": secao(corpo, "Especificação técnica consolidada") or "",
+        "especificacao": especificacao,
         "instrucoes": secao(corpo, "Instruções específicas") or "",
         "tarefas": _tarefas(corpo),
         **({"molde": molde} if molde else {}),

@@ -13,6 +13,12 @@ def git(*args, cwd):
 
 
 class FonteFalsa:
+    def aprovacao_por_politica(self, repo, caminho_sdd):
+        texto = (repo / caminho_sdd).read_text()
+        if "policy" not in texto:
+            return False, []
+        return (True, []) if "verde" in texto else (False, ["hash não bate"])
+
     def sdds_aprovadas(self, repo):
         pasta = repo / "docs/sdd"
         return sorted(
@@ -128,3 +134,38 @@ def test_sdd_sem_aprovacao_no_terminal_espera_e_dispara_depois_de_aprovada(remot
     assert vigia.verificar(lambda _: None) == []
     aprovacoes.registrar("X", "docs/sdd/b.md", b"approved\n", "terminal")
     assert vigia.verificar(lambda _: None) == ["docs/sdd/b.md"]
+
+
+# SDD-FAB-0009, RF09: a SDD aprovada por política dispara sem o registro do terminal
+
+
+def test_politica_verde_dispara_sem_registro_do_terminal(remoto, tmp_path):
+    aprovacoes = Aprovacoes(tmp_path / "f.db")
+    vigia = Vigia(tmp_path / "f.db", "X", str(remoto), "develop", FonteFalsa(), aprovacoes)
+    vigia.verificar(lambda _: None)
+    escrever(remoto, "docs/sdd/b.md", "approved policy verde\n")
+    escrever(remoto, "docs/sdd/c.md", "approved\n")
+    assert vigia.verificar(lambda _: None) == ["docs/sdd/b.md"]
+
+
+def test_politica_com_hash_quebrado_vai_ao_pipeline_para_a_recusa(remoto, tmp_path):
+    aprovacoes = Aprovacoes(tmp_path / "f.db")
+    vigia = Vigia(tmp_path / "f.db", "X", str(remoto), "develop", FonteFalsa(), aprovacoes)
+    vigia.verificar(lambda _: None)
+    escrever(remoto, "docs/sdd/b.md", "approved policy\n")
+    assert vigia.verificar(lambda _: None) == ["docs/sdd/b.md"]
+
+
+# SDD-FAB-0010, RF05: o clone da base falha e o vigia segue
+
+
+def test_clone_da_base_falha_segue_sem_traceback(tmp_path, capsys):
+    sem_base = Vigia(
+        tmp_path / "f.db", "X", str(tmp_path / "sem-base"), "develop", FonteFalsa(), AprovaTudo()
+    )
+    disparadas = []
+    assert sem_base.verificar(disparadas.append) == []
+    assert disparadas == []
+    assert "base: cópia de develop falhou" in capsys.readouterr().out
+    # Nada foi marcado: quando a base voltar, a primeira leitura ainda só registra.
+    assert not sem_base._ja_leu()
