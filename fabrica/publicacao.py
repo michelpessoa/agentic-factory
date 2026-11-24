@@ -1,8 +1,10 @@
 """Tudo o que escreve no GitHub. Só este módulo usa a credencial da fábrica.
 
-Limites deste módulo: push só em `feature/*` e `release/*`; merge só com destino `develop`.
-Não existe caminho de merge em `main`: esse merge é do humano. A única escrita em `develop` fora
-de PR é o fast-forward depois da release, que não traz conteúdo novo.
+Limites deste módulo: push só em `feature/*` e `release/*`, e também em `docs/<id>` de documento
+do central; merge só com destino `develop`, e merge em `main` só de PR `docs/<id>` do central
+(ADR-0012). No repositório do projeto não existe caminho de merge em `main`: esse merge é do
+humano. A única escrita em `develop` fora de PR é o fast-forward depois da release, que não traz
+conteúdo novo.
 """
 
 import json
@@ -18,9 +20,16 @@ from fabrica.versao import proxima_versao
 RAMO_PUBLICAVEL = re.compile(r"^(feature|release)/[A-Za-z0-9._/-]+$")
 RAMO_RELEASE = re.compile(r"^release/(?P<versao>\d+\.\d+\.\d+)$")
 BASE_DE_MERGE_PERMITIDA = "develop"
+RAMO_DOCUMENTO = re.compile(r"^docs/(spec|rfc)-[a-z0-9]+-[0-9]{4}$")
+BASE_DE_DOCUMENTO = "main"
 APROVADOS = {"SUCCESS", "NEUTRAL", "SKIPPED"}
 PENDENTES = {"", "PENDING", "EXPECTED"}
 LIMITE_CORPO_PR = 60000
+# Enquanto a fábrica usa a conta do owner, a etiqueta é o que separa as PRs dela das humanas.
+# Serve para filtrar, não prova autoria: qualquer pessoa com escrita no repo põe ou tira.
+ETIQUETA_PR = "fabrica"
+COR_ETIQUETA = "5319e7"
+DESCRICAO_ETIQUETA = "PR aberta pela Fábrica Agêntica"
 RODAPE_COMMIT = "\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n"
 RODAPE_PR = "\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n"
 GIT_SEM_HOOKS = [
@@ -62,6 +71,16 @@ def commit(repo: Path, mensagem: str) -> str:
 
 def enviar_ramo(repo: Path, url: str, ramo: str) -> None:
     exigir_ramo_publicavel(ramo)
+    _rodar([*GIT_SEM_HOOKS, "-C", str(repo), "push", "--quiet", url, f"HEAD:refs/heads/{ramo}"])
+
+
+def exigir_ramo_documento(ramo: str) -> None:
+    if not RAMO_DOCUMENTO.match(ramo):
+        raise PublicacaoRecusada(f"push recusado para o ramo {ramo!r}")
+
+
+def enviar_ramo_documento(repo: Path, url: str, ramo: str) -> None:
+    exigir_ramo_documento(ramo)
     _rodar([*GIT_SEM_HOOKS, "-C", str(repo), "push", "--quiet", url, f"HEAD:refs/heads/{ramo}"])
 
 
@@ -114,8 +133,22 @@ class Github:
                 "pr", "list", "-R", self.repo, "--head", ramo, "--state", "open", "--json", "number"
             )
         )
+        self._garantir_etiqueta()
         if existentes:
-            return existentes[0]["number"]
+            numero = existentes[0]["number"]
+            # Release reaproveitada ganha commits novos: o corpo antigo listaria só os primeiros.
+            self._gh(
+                "api",
+                "-X",
+                "PATCH",
+                f"repos/{self.repo}/pulls/{numero}",
+                "-f",
+                f"title={titulo}",
+                "-f",
+                f"body={corpo}",
+            )
+            self._etiquetar(numero)
+            return numero
         with tempfile.NamedTemporaryFile("w", suffix=".md") as arquivo:
             arquivo.write(corpo)
             arquivo.flush()
@@ -133,7 +166,30 @@ class Github:
                 "--body-file",
                 arquivo.name,
             ).strip()
-        return int(url.rsplit("/", 1)[-1])
+        numero = int(url.rsplit("/", 1)[-1])
+        self._etiquetar(numero)
+        return numero
+
+    def _garantir_etiqueta(self) -> None:
+        """Cria a etiqueta se faltar; `--force` só ajusta cor e descrição se já existir."""
+        self._gh(
+            "label",
+            "create",
+            ETIQUETA_PR,
+            "-R",
+            self.repo,
+            "--color",
+            COR_ETIQUETA,
+            "--description",
+            DESCRICAO_ETIQUETA,
+            "--force",
+        )
+
+    def _etiquetar(self, numero: int) -> None:
+        # API REST: `gh pr edit` do gh 2.45 falha consultando Projects classic, já desativado.
+        self._gh(
+            "api", f"repos/{self.repo}/issues/{numero}/labels", "-f", f"labels[]={ETIQUETA_PR}"
+        )
 
     def comentar(self, numero: int, texto: str) -> None:
         self._gh("api", f"repos/{self.repo}/issues/{numero}/comments", "-f", f"body={texto}")
@@ -191,6 +247,61 @@ class Github:
             pr["headRefOid"],
         )
         return pr["headRefOid"]
+
+    def login(self) -> str:
+        return json.loads(self._gh("api", "user"))["login"]
+
+    def pr_aberta_do_ramo(self, ramo: str) -> dict | None:
+        dono = self.repo.split("/", 1)[0]
+        abertas = json.loads(
+            self._gh("api", f"repos/{self.repo}/pulls?head={dono}:{ramo}&state=open")
+        )
+        return abertas[0] if abertas else None
+
+    def reviews(self, numero: int) -> list[dict]:
+        return json.loads(self._gh("api", f"repos/{self.repo}/pulls/{numero}/reviews?per_page=100"))
+
+    def abrir_pr_documento(self, ramo: str, titulo: str, corpo: str) -> int:
+        exigir_ramo_documento(ramo)
+        # SDD-FAB-0010, RF03: o vigia só confere PR do central com a etiqueta da fábrica.
+        self._garantir_etiqueta()
+        resposta = self._gh(
+            "api",
+            "-X",
+            "POST",
+            f"repos/{self.repo}/pulls",
+            "-f",
+            f"head={ramo}",
+            "-f",
+            f"base={BASE_DE_DOCUMENTO}",
+            "-f",
+            f"title={titulo}",
+            "-f",
+            f"body={corpo}",
+        )
+        numero_do_documento = json.loads(resposta)["number"]
+        self._etiquetar(numero_do_documento)
+        return numero_do_documento
+
+    def fazer_merge_de_documento(self, numero: int) -> str:
+        """Merge em `main` do central, só de PR `docs/<id>`. Base e head são lidos do GitHub."""
+        pr = json.loads(self._gh("api", f"repos/{self.repo}/pulls/{numero}"))
+        base, head = pr["base"]["ref"], pr["head"]["ref"]
+        if base != BASE_DE_DOCUMENTO or not RAMO_DOCUMENTO.match(head):
+            raise PublicacaoRecusada(f"merge recusado: {head} → {base}")
+        if pr.get("merged"):
+            return pr["merge_commit_sha"]
+        resposta = self._gh(
+            "api",
+            "-X",
+            "PUT",
+            f"repos/{self.repo}/pulls/{numero}/merge",
+            "-f",
+            "merge_method=merge",
+            "-f",
+            f"sha={pr['head']['sha']}",
+        )
+        return json.loads(resposta)["sha"]
 
     def release_aberta(self, principal: str) -> tuple[int, str] | None:
         abertas = json.loads(

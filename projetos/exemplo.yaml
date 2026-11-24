@@ -6,6 +6,8 @@ base: develop                       # onde a fábrica faz merge
 principal: main                     # só o humano faz merge aqui
 permitidos: [usuario]               # logins do GitHub cujo merge de SDD dispara o vigia
 owner: "Nome do Owner"              # vai no front-matter das SDDs da descoberta
+framework: "2.8.0"                  # versão exigida do framework; outra versão no clone, a fábrica recusa
+central: "~/doc-traceability-central" # raiz do repositório central; a fábrica confere a versão do _framework/ dele
 comandos:                           # rodados nos gates, num contêiner sem rede
   build: python3 -m compileall -q .
   testes: python3 -m unittest discover -s tests -v

@@ -13,6 +13,7 @@ verificação ([PR #2](https://github.com/michelpessoa/fabrica-zero/pull/2)), o 
 - Linux ou WSL2, com Docker e [uv](https://docs.astral.sh/uv/).
 - [`gh`](https://cli.github.com/) logado numa conta com acesso de escrita ao repositório do projeto.
   Para projeto real, use a conta própria da fábrica (veja o [README](../README.md#conta-da-fábrica-no-github)).
+  Até lá, as PRs da fábrica saem com a etiqueta `fabrica`: `gh pr list --label fabrica` mostra só elas.
 - Assinatura do Claude que permita `claude setup-token`. Os agentes rodam com esse token, dentro de
   contêineres.
 - Clone do [doc-traceability-framework](https://github.com/michelpessoa/doc-traceability-framework),
@@ -30,6 +31,10 @@ docker compose -f docker/compose.yml up -d proxy          # única saída de red
 uv run python scripts/gerar_token.py                      # salva em ~/.config/fabrica/claude-token
 uv run pytest                                             # cerca de 5 minutos
 ```
+
+Cada projeto declara em `projetos/<nome>.yaml` a versão do framework que exige (`framework: "2.3.2"`).
+Se o clone estiver em outra versão, a fábrica recusa iniciar, descobrir e vigiar. O CI testa contra o
+commit fixado em `.github/workflows/ci.yml`; ao subir a versão, troque esse commit e os projetos juntos.
 
 O token não deve aparecer em print, chat ou commit. O script salva sem passar pela área de
 transferência.
@@ -175,3 +180,24 @@ uv run python -m fabrica pos-release zero 0.1.0   # cria a tag v0.1.0 e atualiza
 
 `fabrica status` lista as execuções, e `fabrica painel` abre um painel só leitura em
 `http://127.0.0.1:8765`. Avisos também vão para `.fabrica/status.log`.
+
+### Avisos por e-mail e Teams
+
+Opcionais ([ADR-0011](adr/ADR-0011-notificacao-por-email-e-teams.md)). Crie
+`~/.config/fabrica/notificacao.toml` só com os canais que quiser e rode `chmod 600` nele: o arquivo
+guarda segredo, e a fábrica recusa começar se outro usuário puder lê-lo.
+
+```toml
+[email]
+servidor = "smtp.gmail.com"   # Gmail: senha de app, com 2FA ligado
+porta = 587
+usuario = "conta@gmail.com"
+senha = "senha-de-app"
+para = ["voce@exemplo.com"]
+
+[teams]
+url = "https://..."           # Workflows > "Post to a channel when a webhook request is received"
+```
+
+O aviso leva o nome da SDD, o estado e o começo do motivo para fora do computador. Falha de envio
+fica no `status.log` e não para a execução.

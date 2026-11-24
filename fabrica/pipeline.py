@@ -64,6 +64,10 @@ class Projeto:
     comandos: dict[str, str] = field(default_factory=dict)
     padroes_de_teste: tuple[str, ...] = PADROES_DE_TESTE
     owner: str = ""
+    # Versão do framework de documentos que o projeto exige. Vazia: a fábrica recusa iniciar.
+    framework: str = ""
+    # Raiz do repositório central do projeto. Vazia: a fábrica recusa iniciar.
+    central: str = ""
 
 
 class ExecucaoEmAberto(Exception):
@@ -73,11 +77,20 @@ class ExecucaoEmAberto(Exception):
 class FonteDeContrato(Protocol):
     def identificador(self) -> str: ...
     def problemas_de_entrada(self, repo: Path, caminho_sdd: str) -> list[str]: ...
+    def aprovacao_por_politica(self, repo: Path, caminho_sdd: str) -> tuple[bool, list[str]]: ...
     def compilar(self, repo: Path, caminho_sdd: str) -> dict: ...
     def caminhos_historicos(self) -> tuple[str, ...]: ...
     def arquivar(self, repo: Path, caminho_sdd: str, pr: int, data: str) -> bool: ...
+    def fidelidade_a_origem(self, repo: Path, caminho_sdd: str) -> tuple[bool, dict]: ...
+    def textos_de_origem(self, repo: Path, caminho_sdd: str) -> dict[str, str]: ...
     def registrar_verificacao(
-        self, repo: Path, caminho_sdd: str, validacao: dict, base: str, head: str
+        self,
+        repo: Path,
+        caminho_sdd: str,
+        validacao: dict,
+        base: str,
+        head: str,
+        linhas_extras: list[dict] = (),
     ) -> list[str]: ...
 
 
@@ -232,7 +245,12 @@ class Pipeline:
             return
         sha_sdd = _ultimo_commit_do_arquivo(leitura, caminho_sdd)
         aprovador = self.github.quem_mergeou_o_commit(sha_sdd)
-        if aprovador not in self.projeto.permitidos:
+        # SPEC-DTF-0032, RF09: a SDD aprovada por política com hash verde dispensa o terminal.
+        por_politica, motivos = self.fonte.aprovacao_por_politica(leitura, caminho_sdd)
+        # SDD-FAB-0010, RF04: o merge da SDD de política verde é da própria conta do executor.
+        if aprovador not in self.projeto.permitidos and not (
+            por_politica and aprovador == self.github.login()
+        ):
             self._parar(
                 run_id,
                 "RECUSADA_ENTRADA",
@@ -240,7 +258,16 @@ class Pipeline:
             )
             return
         conteudo = (leitura / caminho_sdd).read_bytes()
-        if not self.aprovacoes.aprovada(self.projeto.codigo, caminho_sdd, conteudo):
+        if motivos:
+            self._parar(
+                run_id,
+                "RECUSADA_ENTRADA",
+                f"aprovação por política inválida: {'; '.join(motivos)}",
+            )
+            return
+        if not por_politica and not self.aprovacoes.aprovada(
+            self.projeto.codigo, caminho_sdd, conteudo
+        ):
             self._parar(
                 run_id,
                 "RECUSADA_ENTRADA",
@@ -607,6 +634,20 @@ class Pipeline:
         dados = self.historico.dados(run_id)
         _, caminho_sdd = self.historico.projeto_e_sdd(run_id)
         candidato = self._candidato(run_id)
+        # SPEC-DTF-0033, RF01: com source_docs, a origem é conferida no host antes do revisor.
+        linhas_extras, origens = [], None
+        if dados["entrada"].get("source_docs"):
+            try:
+                ok, linha = self.fonte.fidelidade_a_origem(candidato, caminho_sdd)
+            except subprocess.CalledProcessError as erro:
+                motivo = f"central indisponível para a fidelidade à origem: {erro}"
+                self._parar(run_id, "PAUSADA_AMBIENTE", motivo, {"retomar_em": "VERIFY_SDD"})
+                return
+            if not ok:
+                self._parar(run_id, "PARADA_ESPECIFICACAO", linha["saida"], {"relatorio": {}})
+                return
+            linhas_extras = [linha]
+            origens = self.fonte.textos_de_origem(candidato, caminho_sdd)
         try:
             resultado = verificar(
                 self.runner,
@@ -621,6 +662,7 @@ class Pipeline:
                 dados["tentativa"],
                 self.revisor_modelo,
                 self._ocultos(),
+                origens,
             )
         except RespostaRecusada as erro:
             self._recusar(run_id, str(erro))
@@ -645,7 +687,7 @@ class Pipeline:
             return
         head = _git(candidato, "rev-parse", "HEAD")
         problemas = self.fonte.registrar_verificacao(
-            candidato, caminho_sdd, validacao, dados["base"], head
+            candidato, caminho_sdd, validacao, dados["base"], head, linhas_extras
         )
         if problemas:
             self._parar(run_id, "PARADA_ESPECIFICACAO", "; ".join(problemas), {"relatorio": {}})

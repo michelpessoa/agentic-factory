@@ -160,3 +160,13 @@ def problemas_de_coerencia(validacao: dict) -> list[str]:
     if validacao["testes"]["passaram"] != len(criterios) - falharam:
         problemas.append("testes.passaram não bate com os critérios")
     return problemas
+
+
+ITEM_FIDELIDADE = "Fidelidade à origem"
+
+
+def problemas_de_fidelidade(validacao: dict) -> list[str]:
+    """Com origem no prompt, o revisor tem de devolver o item do passo 0 (SPEC-DTF-0033, RF02)."""
+    if any(ITEM_FIDELIDADE in c["numero"] for c in validacao["criterios"]):
+        return []
+    return [f"resposta sem o item '{ITEM_FIDELIDADE}' em criterios"]

@@ -9,6 +9,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Versão fixada do framework: a mesma que os projetos declaram em `framework`.
+      # Ao subir a versão, troque FRAMEWORK_SHA e projetos/*.yaml no mesmo commit.
+      # Fora do workspace, para o ruff e o pytest não lerem o framework.
+      - name: Framework fixado
+        env:
+          FRAMEWORK_SHA: 1d9b16cf89d8ef63852a26eafce668966b168447  # framework 2.8.0
+        run: |
+          destino="$HOME/doc-traceability-framework"
+          git init -q "$destino"
+          git -C "$destino" fetch -q --depth 1 https://github.com/michelpessoa/doc-traceability-framework "$FRAMEWORK_SHA"
+          git -C "$destino" checkout -q FETCH_HEAD
+          echo "FABRICA_FRAMEWORK=$destino" >> "$GITHUB_ENV"
+      - run: git clone --depth 1 https://github.com/michelpessoa/fabrica-cobaia "$HOME/projetos/fabrica-cobaia"
+      - run: git clone --depth 1 https://github.com/michelpessoa/fabrica-central-teste "$HOME/fabrica-central-teste"
       - uses: astral-sh/setup-uv@v5
       - run: uv sync
       - run: uv run ruff check .

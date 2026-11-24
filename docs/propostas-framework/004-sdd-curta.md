@@ -1,5 +1,7 @@
 # 004: SDD curta com molde
 
+> Absorvida pela SPEC-DTF-0031 (framework 2.7.0): campo molde em frontmatter_schema, só em SDD small.
+
 ## Problema
 
 O sizing decide quantos documentos existem, mas a SDD `small` ainda repete o padrão no próprio corpo.
