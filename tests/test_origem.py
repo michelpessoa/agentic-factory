@@ -387,3 +387,340 @@ def test_fidelidade_textos_de_origem_publico_le_pelo_registry(tmp_path):
     f, repo = fonte_com_spec_enxuta(tmp_path)
     textos = f.textos_de_origem(repo, "docs/sdd/SDD-X-0001.md")
     assert textos["SPEC-X-0003"] == SPEC_ENXUTA
+
+
+# SDD-FAB-0013, RF01 a RF03: a pasta de cada origem sai do código do id
+
+CORPO_DE_OUTRA_PASTA = """# {doc_id}
+
+## Requisitos funcionais
+
+| RF-ID | Requisito | Critério de aceite (EARS) | Arquivos |{coluna}
+|---|---|---|---|{traco}
+| RF01 | Aviso | Quando o cadastro mudar, o sistema deve enviar um e-mail. | `app/avisos.py` |{celula}
+"""
+
+
+def documento_do_central(raiz, doc_id, status="approved", projetos=None, parent_adr=None):
+    """Escreve o documento e a entrada no registry da pasta do id; `projetos` None tira a coluna."""
+    tipo, codigo, _ = doc_id.split("-")
+    pasta = {"SPEC": "03-spec", "ADR": "02-adr"}[tipo]
+    path = f"docs/{codigo}/{pasta}/{doc_id}.md"
+    coluna, traco, celula = (" Projeto |", "---|", f" {projetos} |") if projetos else ("", "", "")
+    corpo = CORPO_DE_OUTRA_PASTA.format(doc_id=doc_id, coluna=coluna, traco=traco, celula=celula)
+    arquivo = raiz / path
+    arquivo.parent.mkdir(parents=True, exist_ok=True)
+    arquivo.write_text(
+        f"---\nid: {doc_id}\ntype: {tipo}\nstatus: {status}\nsizing: medium\n"
+        f"parent_adr: {parent_adr or 'null'}\n---\n\n{corpo}",
+        encoding="utf-8",
+    )
+    registro = raiz / "docs" / codigo / "registry.yaml"
+    dados = (
+        yaml.safe_load(registro.read_text(encoding="utf-8"))
+        if registro.is_file()
+        else {"project": codigo, "documents": []}
+    )
+    dados["documents"].append(
+        {"id": doc_id, "type": tipo, "title": doc_id, "status": status, "path": path}
+    )
+    registro.write_text(yaml.safe_dump(dados), encoding="utf-8")
+
+
+def fonte_de_duas_pastas(tmp_path, codigo="COBAIA"):
+    """Central com `docs/DTF/` e `docs/COBAIA/`, para um projeto COBAIA."""
+    raiz = tmp_path / "central"
+    raiz.mkdir()
+    git("init", "-q", cwd=raiz)
+    git("remote", "add", "origin", "https://github.com/dona/central.git", cwd=raiz)
+    documento_do_central(raiz, "SPEC-DTF-0040", projetos="DTF, COBAIA", parent_adr="ADR-DTF-0010")
+    documento_do_central(raiz, "SPEC-DTF-0041", projetos="DTF, FAB")
+    documento_do_central(raiz, "SPEC-DTF-0031")
+    documento_do_central(raiz, "SPEC-DTF-0042", status="draft", projetos="COBAIA")
+    documento_do_central(raiz, "ADR-DTF-0010")
+    documento_do_central(raiz, "ADR-DTF-0011")
+    documento_do_central(raiz, "SPEC-COBAIA-0003")
+    return FonteDocTraceability(Framework(), raiz, codigo)
+
+
+def test_pasta_das_origens_spec_de_outra_pasta_com_o_codigo_e_aceita(tmp_path):
+    assert fonte_de_duas_pastas(tmp_path).pasta_das_origens(["SPEC-DTF-0040"]) == ("DTF", [])
+
+
+def test_pasta_das_origens_spec_de_outra_pasta_sem_o_codigo_e_recusada(tmp_path):
+    assert fonte_de_duas_pastas(tmp_path).pasta_das_origens(["SPEC-DTF-0041"]) == (
+        "DTF",
+        ["SPEC-DTF-0041 é de docs/DTF/ e não declara COBAIA na coluna Projeto"],
+    )
+
+
+def test_pasta_das_origens_spec_de_outra_pasta_sem_a_coluna_e_recusada(tmp_path):
+    assert fonte_de_duas_pastas(tmp_path).pasta_das_origens(["SPEC-DTF-0031"]) == (
+        "DTF",
+        ["SPEC-DTF-0031 é de docs/DTF/ e não declara COBAIA na coluna Projeto"],
+    )
+
+
+def test_pasta_das_origens_adr_parent_adr_de_spec_aceita_e_aceita(tmp_path):
+    f = fonte_de_duas_pastas(tmp_path)
+    assert f.pasta_das_origens(["SPEC-DTF-0040", "ADR-DTF-0010"]) == ("DTF", [])
+    assert f.pasta_das_origens(["ADR-DTF-0010", "SPEC-DTF-0040"]) == ("DTF", [])
+
+
+@pytest.mark.parametrize(
+    "ids", [["ADR-DTF-0010"], ["SPEC-DTF-0040", "ADR-DTF-0011"]], ids=["sozinha", "outra_adr"]
+)
+def test_pasta_das_origens_adr_sem_spec_aceita_e_recusada(tmp_path, ids):
+    assert fonte_de_duas_pastas(tmp_path).pasta_das_origens(ids) == (
+        "DTF",
+        [f"{ids[-1]} é de docs/DTF/ e não é parent_adr de SPEC aceita nas origens"],
+    )
+
+
+def test_pasta_das_origens_adr_de_spec_recusada_e_recusada(tmp_path):
+    f = fonte_de_duas_pastas(tmp_path)
+    (tmp_path / "central/docs/DTF/03-spec/SPEC-DTF-0041.md").write_text(
+        "---\nid: SPEC-DTF-0041\ntype: SPEC\nparent_adr: ADR-DTF-0011\n---\n", encoding="utf-8"
+    )
+    assert f.pasta_das_origens(["SPEC-DTF-0041", "ADR-DTF-0011"]) == (
+        "DTF",
+        [
+            "SPEC-DTF-0041 é de docs/DTF/ e não declara COBAIA na coluna Projeto",
+            "ADR-DTF-0011 é de docs/DTF/ e não é parent_adr de SPEC aceita nas origens",
+        ],
+    )
+
+
+def test_pasta_das_origens_duas_pastas_sao_recusadas_em_ordem_alfabetica(tmp_path):
+    assert fonte_de_duas_pastas(tmp_path).pasta_das_origens(
+        ["SPEC-DTF-0040", "SPEC-COBAIA-0003"]
+    ) == ("", ["source_docs em mais de uma pasta do central: COBAIA, DTF"])
+
+
+@pytest.mark.parametrize("doc_id", ["SPEC-dtf-40", "RFC-DTF-0009", "SPEC-DTF-40", "DTF-0040"])
+def test_pasta_das_origens_id_fora_do_formato_e_recusado(tmp_path, doc_id):
+    assert fonte_de_duas_pastas(tmp_path).pasta_das_origens([doc_id]) == (
+        "",
+        [f"{doc_id} está fora do formato SPEC-<CODE>-<SEQ4> ou ADR-<CODE>-<SEQ4>"],
+    )
+
+
+def test_pasta_das_origens_pasta_inexistente_e_recusada(tmp_path):
+    assert fonte_de_duas_pastas(tmp_path).pasta_das_origens(["SPEC-XYZ-0001"]) == (
+        "XYZ",
+        ["SPEC-XYZ-0001 não está no registry do central em docs/XYZ"],
+    )
+
+
+def test_pasta_das_origens_id_fora_do_registry_da_outra_pasta_e_recusado(tmp_path):
+    assert fonte_de_duas_pastas(tmp_path).pasta_das_origens(["SPEC-DTF-0040", "SPEC-DTF-0099"]) == (
+        "DTF",
+        ["SPEC-DTF-0099 não está no registry do central em docs/DTF"],
+    )
+
+
+def test_pasta_das_origens_propria_pasta_e_sem_ids(tmp_path):
+    f = fonte_de_duas_pastas(tmp_path)
+    assert f.pasta_das_origens([]) == ("COBAIA", [])
+    assert f.pasta_das_origens(["SPEC-COBAIA-0003"]) == ("COBAIA", [])
+    # Na própria pasta, o tipo não é conferido aqui: a mensagem de hoje segue de quem já confere.
+    documento_do_central(tmp_path / "central", "ADR-COBAIA-0001")
+    assert f.pasta_das_origens(["ADR-COBAIA-0001"]) == ("COBAIA", [])
+
+
+# SDD-FAB-0013, RF04: origem de outra pasta na descoberta
+
+
+def test_origem_outra_pasta_com_o_codigo_devolve_a_url_da_pasta_e_o_texto(tmp_path):
+    origem = fonte_de_duas_pastas(tmp_path).origem("SPEC-DTF-0040")
+    assert origem["url"] == (
+        "https://github.com/dona/central/blob/main/docs/DTF/03-spec/SPEC-DTF-0040.md"
+    )
+    assert (origem["id"], origem["tipo"], origem["sizing"]) == ("SPEC-DTF-0040", "SPEC", "medium")
+    assert "| DTF, COBAIA |" in origem["texto"]
+
+
+def test_origem_outra_pasta_sem_o_codigo_levanta_a_mensagem_do_rf02(tmp_path):
+    with pytest.raises(
+        OrigemInvalida,
+        match=r"^SPEC-DTF-0041 é de docs/DTF/ e não declara COBAIA na coluna Projeto$",
+    ):
+        fonte_de_duas_pastas(tmp_path).origem("SPEC-DTF-0041")
+
+
+def test_origem_outra_pasta_em_draft_segue_recusada_pelo_status(tmp_path):
+    with pytest.raises(
+        OrigemInvalida, match=r"^SPEC-DTF-0042 está draft: a origem precisa estar approved$"
+    ):
+        fonte_de_duas_pastas(tmp_path).origem("SPEC-DTF-0042")
+
+
+# SDD-FAB-0013, RF05 e RF07: entrada com o kit real
+
+
+def central_do_kit(tmp_path, projetos="COBAIA"):
+    """Central de `test_vigia_central` com a SPEC-DTF-0001 approved, que o kit aceita."""
+    from tests.test_vigia_central import Central
+
+    (tmp_path / "c").mkdir()
+    central = Central(tmp_path / "c")
+    spec_id = central.spec(1, codigo="DTF", projetos=projetos)
+    central.publicar()
+    return central, spec_id
+
+
+def sdd_de_projeto(tmp_path, codigo, spec_id, pasta):
+    import copy
+
+    from adapters.doc_traceability.redacao import escrever_sdd
+    from tests.test_redacao import ENXUTO
+
+    repo = tmp_path / "repo"
+    (repo / "docs/sdd").mkdir(parents=True)
+    (repo / "docs/sdd/registry.yaml").write_text(
+        f'project: "{codigo}"\nframework_version: "2.7.0"\ndocuments:\n', encoding="utf-8"
+    )
+    sdd = copy.deepcopy(ENXUTO) | {"sizing": "medium"}
+    sdd["requisitos"][0] |= {"origem": spec_id, "requisito": "Aviso de mudança",
+                             "arquivos": ["app/avisos.py"]}  # fmt: skip
+    origens = [{"id": spec_id, "url": f"https://h/blob/main/docs/{pasta}/03-spec/{spec_id}.md"}]
+    caminho = escrever_sdd(
+        repo, sdd, codigo, "Dona", "2026-11-24", "approved", "2.7.0", origens=origens
+    )
+    return repo, caminho
+
+
+def test_entrada_outra_pasta_sdd_enxuta_sai_sem_problema(tmp_path):
+    central, spec_id = central_do_kit(tmp_path)
+    repo, caminho = sdd_de_projeto(tmp_path, "COBAIA", spec_id, "DTF")
+    f = FonteDocTraceability(Framework(), central.clone, "COBAIA")
+    assert f.problemas_de_entrada(repo, caminho) == []
+    assert list(f.textos_de_origem(repo, caminho)) == [spec_id]
+
+
+def test_entrada_outra_pasta_sem_o_codigo_na_coluna_nao_roda_o_kit(tmp_path):
+    central, spec_id = central_do_kit(tmp_path, projetos="DTF")
+    repo, caminho = sdd_de_projeto(tmp_path, "COBAIA", spec_id, "DTF")
+    f = FonteDocTraceability(Framework(), central.clone, "COBAIA")
+    chamadas = []
+    f._framework.validar_entrada = lambda *a: chamadas.append(a) or []
+    assert f.problemas_de_entrada(repo, caminho) == [
+        f"{spec_id} é de docs/DTF/ e não declara COBAIA na coluna Projeto"
+    ]
+    assert chamadas == []
+
+
+def test_entrada_outra_pasta_com_duas_pastas_nao_roda_o_kit(tmp_path):
+    central, spec_id = central_do_kit(tmp_path)
+    repo, caminho = sdd_de_projeto(tmp_path, "COBAIA", spec_id, "DTF")
+    arquivo = repo / caminho
+    arquivo.write_text(
+        arquivo.read_text(encoding="utf-8").replace(
+            "source_docs:\n",
+            'source_docs:\n  - id: "SPEC-COBAIA-0003"\n'
+            '    url: "https://h/blob/main/docs/COBAIA/03-spec/SPEC-COBAIA-0003.md"\n',
+        ),
+        encoding="utf-8",
+    )
+    f = FonteDocTraceability(Framework(), central.clone, "COBAIA")
+    chamadas = []
+    f._framework.validar_entrada = lambda *a: chamadas.append(a) or []
+    assert f.problemas_de_entrada(repo, caminho) == [
+        "source_docs em mais de uma pasta do central: COBAIA, DTF"
+    ]
+    assert chamadas == []
+
+
+def test_entrada_propria_pasta_passa_docs_do_codigo_ao_kit(tmp_path):
+    central, spec_id = central_do_kit(tmp_path, projetos=None)
+    repo, caminho = sdd_de_projeto(tmp_path, "DTF", spec_id, "DTF")
+    f = FonteDocTraceability(Framework(), central.clone, "DTF")
+    pastas = []
+    validar = f._framework.validar_entrada
+    f._framework.validar_entrada = lambda r, s, d: pastas.append(d) or validar(r, s, d)
+    assert f.problemas_de_entrada(repo, caminho) == []
+    assert pastas == [central.clone / "docs" / "DTF"]
+
+
+def test_entrada_propria_pasta_id_fora_do_registry_segue_com_o_kit(tmp_path):
+    central, _ = central_do_kit(tmp_path)
+    repo, caminho = sdd_de_projeto(tmp_path, "DTF", "SPEC-DTF-0099", "DTF")
+    f = FonteDocTraceability(Framework(), central.clone, "DTF")
+    problemas = f.problemas_de_entrada(repo, caminho)
+    assert any(p.startswith("check_source_docs.py: ") for p in problemas), problemas
+    assert not any("não está no registry do central em docs/DTF" in p for p in problemas)
+
+
+# SDD-FAB-0013, RF06 e RF07: verificação contra a pasta das origens em origin/main
+
+
+def leitor_do_central(central):
+    """Clone de quem verifica, separado do clone em que o owner escreve e faz push."""
+    clone = central.clone.parent / "leitor"
+    git("clone", "-q", str(central.nu), str(clone), cwd=central.clone.parent)
+    return clone
+
+
+def test_fidelidade_outra_pasta_passa_com_docs_dtf_no_comando(tmp_path):
+    central, spec_id = central_do_kit(tmp_path)
+    repo, caminho = sdd_de_projeto(tmp_path, "COBAIA", spec_id, "DTF")
+    leitor = leitor_do_central(central)
+    f = FonteDocTraceability(Framework(), leitor, "COBAIA")
+    ok, linha = f.fidelidade_a_origem(repo, caminho)
+    assert ok is True, linha["saida"]
+    assert linha["passou"] is True
+    assert f" {leitor / 'docs' / 'DTF'} (em origin/main)" in linha["comando"]
+    assert list(f.textos_de_origem(repo, caminho)) == [spec_id]
+
+
+def test_fidelidade_outra_pasta_em_draft_em_origin_main_reprova(tmp_path):
+    central, spec_id = central_do_kit(tmp_path)
+    repo, caminho = sdd_de_projeto(tmp_path, "COBAIA", spec_id, "DTF")
+    leitor = leitor_do_central(central)
+    registro = central.clone / "docs/DTF/registry.yaml"
+    registro.write_text(
+        registro.read_text(encoding="utf-8").replace("status: approved", "status: draft"),
+        encoding="utf-8",
+    )
+    central.publicar("docs: spec em draft")
+    assert "status: approved" in (leitor / "docs/DTF/registry.yaml").read_text(encoding="utf-8")
+    ok, linha = FonteDocTraceability(Framework(), leitor, "COBAIA").fidelidade_a_origem(
+        repo, caminho
+    )
+    assert ok is False
+    assert linha["passou"] is False
+    assert "draft" in linha["saida"]
+    assert "docs/DTF (em origin/main)" in linha["comando"]
+
+
+def test_fidelidade_outra_pasta_sem_o_codigo_em_origin_main_reprova_sem_o_kit(tmp_path):
+    central, spec_id = central_do_kit(tmp_path)
+    repo, caminho = sdd_de_projeto(tmp_path, "COBAIA", spec_id, "DTF")
+    leitor = leitor_do_central(central)
+    # Em origin/main a coluna Projeto perde COBAIA; a árvore do clone segue com ela.
+    arquivo = central.clone / "docs/DTF/03-spec" / f"{spec_id}.md"
+    arquivo.write_text(
+        arquivo.read_text(encoding="utf-8").replace("| COBAIA |", "| DTF |"), encoding="utf-8"
+    )
+    central.publicar("docs: coluna sem COBAIA")
+    f = FonteDocTraceability(Framework(), leitor, "COBAIA")
+    rodados = []
+    rodar = f._framework._rodar
+    f._framework._rodar = lambda *a, **k: rodados.append(a) or rodar(*a, **k)
+    ok, linha = f.fidelidade_a_origem(repo, caminho)
+    assert ok is False
+    assert linha["passou"] is False
+    assert linha["saida"] == f"{spec_id} é de docs/DTF/ e não declara COBAIA na coluna Projeto"
+    assert rodados == []
+
+
+def test_fidelidade_propria_pasta_comando_igual_ao_de_31cdf4e(tmp_path):
+    clone, _, _ = central_com_remoto(tmp_path)
+    repo, caminho = sdd_com_origem(tmp_path)
+    f = FonteDocTraceability(Framework(), clone, "ZERO")
+    ok, linha = f.fidelidade_a_origem(repo, caminho)
+    script = Framework().scripts / "check_source_docs.py"
+    assert ok is True, linha["saida"]
+    assert linha["comando"] == (
+        f"python3 {script} {caminho} {clone / 'docs' / 'ZERO'} (em origin/main)"
+    )

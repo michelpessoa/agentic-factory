@@ -1,5 +1,6 @@
 """Único ponto da fábrica que conhece o framework de rastreabilidade."""
 
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -10,13 +11,14 @@ from adapters.doc_traceability.arquivo import DIR_ARQUIVO, arquivar_sdd
 from adapters.doc_traceability.central import (
     EscritaNoCentral,
     EscritaRecusada,
+    _projetos_da_spec,
     repositorio_do_central,
 )
 from adapters.doc_traceability.compilador import FRONTMATTER_RE, SddInvalida, compilar_sdd
 from adapters.doc_traceability.evidencia import registrar_evidencia
 from adapters.doc_traceability.redacao import aprovar_por_politica, escrever_sdd, formato_da_sdd
 from adapters.doc_traceability.regras import Regras
-from adapters.doc_traceability.validadores import Framework, VersaoDivergente
+from adapters.doc_traceability.validadores import Framework, ResultadoValidador, VersaoDivergente
 
 __all__ = [
     "EscritaNoCentral",
@@ -26,6 +28,16 @@ __all__ = [
     "VersaoDivergente",
     "repositorio_do_central",
 ]
+
+
+ID_DE_ORIGEM_RE = re.compile(r"^([A-Z]+)-([A-Z][A-Z0-9]*)-(\d{4})$")
+
+
+def _ids_de_origem(sdd: Path) -> list[str]:
+    """Ids de `source_docs` da SDD; vazio sem arquivo ou sem front-matter."""
+    achado = FRONTMATTER_RE.match(sdd.read_text(encoding="utf-8")) if sdd.is_file() else None
+    frente = (yaml.safe_load(achado.group(1)) or {}) if achado else {}
+    return [str(d.get("id", "")) for d in frente.get("source_docs") or [] if isinstance(d, dict)]
 
 
 class OrigemInvalida(Exception):
@@ -53,7 +65,10 @@ class FonteDocTraceability:
     def problemas_de_entrada(self, repo: Path, caminho_sdd: str) -> list[str]:
         """Junta os validadores e o compilador numa só decisão."""
         sdd = repo / caminho_sdd
-        docs_central = (self._central or Path("")) / "docs" / self._codigo
+        pasta, problemas_de_pasta = self.pasta_das_origens(_ids_de_origem(sdd))
+        if problemas_de_pasta and pasta != self._codigo:
+            return problemas_de_pasta
+        docs_central = (self._central or Path("")) / "docs" / pasta
         problemas = [
             f"{r.nome}: {mensagem}"
             for r in self._framework.validar_entrada(repo, sdd, docs_central)
@@ -76,8 +91,9 @@ class FonteDocTraceability:
         return [] if resultado.ok else [f"{resultado.nome}: {m}" for m in resultado.problemas]
 
     def fidelidade_a_origem(self, repo: Path, caminho_sdd: str) -> tuple[bool, dict]:
-        """`check_source_docs.py` contra `docs/<codigo>/` de `origin/main` do central, depois de
-        `git fetch` (SPEC-DTF-0033, RF01). Levanta `CalledProcessError` se o `fetch` falhar."""
+        """`check_source_docs.py` contra a pasta das origens em `origin/main` do central, depois
+        de `git fetch` (SPEC-DTF-0033, RF01; SPEC-DTF-0034, RF06). Levanta `CalledProcessError`
+        se o `fetch` falhar. Problema de pasta das origens reprova sem rodar o kit."""
         central = self._central or Path("")
         subprocess.run(
             ["git", "-C", str(central), "fetch", "-q", "origin", "main"],
@@ -95,12 +111,19 @@ class FonteDocTraceability:
                 check=True,
             )  # fmt: skip
             try:
-                resultado = self._framework._rodar(
-                    "check_source_docs.py",
-                    str(repo / caminho_sdd),
-                    str(arvore / "docs" / self._codigo),
-                    cwd=repo,
-                )
+                em_main = FonteDocTraceability(self._framework, arvore, self._codigo)
+                pasta, problemas = em_main.pasta_das_origens(_ids_de_origem(repo / caminho_sdd))
+                if problemas and pasta != self._codigo:
+                    resultado = ResultadoValidador(
+                        "check_source_docs.py", False, "\n".join(problemas), tuple(problemas)
+                    )
+                else:
+                    resultado = self._framework._rodar(
+                        "check_source_docs.py",
+                        str(repo / caminho_sdd),
+                        str(arvore / "docs" / pasta),
+                        cwd=repo,
+                    )
             finally:
                 subprocess.run(
                     ["git", "-C", str(central), "worktree", "remove", "--force", str(arvore)],
@@ -110,7 +133,7 @@ class FonteDocTraceability:
         script = self._framework.scripts / "check_source_docs.py"
         linha = {
             "numero": "Fidelidade à origem (check_source_docs)",
-            "comando": f"python3 {script} {caminho_sdd} {central / 'docs' / self._codigo} "
+            "comando": f"python3 {script} {caminho_sdd} {central / 'docs' / (pasta or self._codigo)} "
             "(em origin/main)",
             "saida": resultado.saida,
             "sensor": "sem teste automatizado (script do kit)",
@@ -131,7 +154,7 @@ class FonteDocTraceability:
         if not achado:
             return {}
         frente = yaml.safe_load(achado.group(1)) or {}
-        registry = self._registry_central()
+        registry = self._registry_central(self.pasta_das_origens(_ids_de_origem(sdd))[0])
         textos = {}
         for doc in frente.get("source_docs") or []:
             doc_id = doc.get("id") if isinstance(doc, dict) else None
@@ -141,8 +164,58 @@ class FonteDocTraceability:
                 textos[doc_id] = arquivo.read_text(encoding="utf-8")
         return textos
 
-    def _registry_central(self) -> dict:
-        arquivo = (self._central or Path("")) / "docs" / self._codigo / "registry.yaml"
+    def pasta_das_origens(self, ids: list[str]) -> tuple[str, list[str]]:
+        """Pasta do central comum aos ids de origem e os problemas (SPEC-DTF-0034, RF01 a RF03).
+
+        Sem ids, a pasta é a do projeto. De outra pasta, só vale SPEC que declara o projeto na
+        coluna Projeto, ou ADR que é `parent_adr` de uma SPEC aceita assim.
+        """
+        if not ids:
+            return self._codigo, []
+        partes = {doc_id: ID_DE_ORIGEM_RE.match(doc_id) for doc_id in ids}
+        fora = [
+            doc_id
+            for doc_id, parte in partes.items()
+            if parte is None or (parte[2] != self._codigo and parte[1] not in {"SPEC", "ADR"})
+        ]
+        if fora:
+            return "", [
+                f"{doc_id} está fora do formato SPEC-<CODE>-<SEQ4> ou ADR-<CODE>-<SEQ4>"
+                for doc_id in fora
+            ]
+        pastas = sorted({parte[2] for parte in partes.values()})
+        if len(pastas) > 1:
+            return "", [f"source_docs em mais de uma pasta do central: {', '.join(pastas)}"]
+        pasta = pastas[0]
+        registry = self._registry_central(pasta)
+        problemas = [
+            f"{doc_id} não está no registry do central em docs/{pasta}"
+            for doc_id in ids
+            if doc_id not in registry
+        ]
+        if problemas or pasta == self._codigo:
+            return pasta, problemas
+        adrs_aceitas = set()
+        for doc_id in ids:
+            if partes[doc_id][1] != "SPEC":
+                continue
+            arquivo = (self._central or Path("")) / registry[doc_id]["path"]
+            texto = arquivo.read_text(encoding="utf-8") if arquivo.is_file() else ""
+            if self._codigo in _projetos_da_spec(texto):
+                adrs_aceitas.add(self._frontmatter_central(registry[doc_id]).get("parent_adr"))
+            else:
+                problemas.append(
+                    f"{doc_id} é de docs/{pasta}/ e não declara {self._codigo} na coluna Projeto"
+                )
+        problemas += [
+            f"{doc_id} é de docs/{pasta}/ e não é parent_adr de SPEC aceita nas origens"
+            for doc_id in ids
+            if partes[doc_id][1] == "ADR" and doc_id not in adrs_aceitas
+        ]
+        return pasta, problemas
+
+    def _registry_central(self, pasta: str | None = None) -> dict:
+        arquivo = (self._central or Path("")) / "docs" / (pasta or self._codigo) / "registry.yaml"
         if not arquivo.is_file():
             return {}
         dados = yaml.safe_load(arquivo.read_text(encoding="utf-8")) or {}
@@ -167,7 +240,7 @@ class FonteDocTraceability:
         if "SPEC" in self._regras.documentos(sizing) and not specs:
             return [f"sizing {sizing} exige SPEC approved em source_docs"]
         problemas = []
-        registry = self._registry_central() if specs else {}
+        registry = self._registry_central(self.pasta_das_origens(ids)[0]) if specs else {}
         for spec_id in specs:
             if spec_id not in registry:
                 continue
@@ -198,10 +271,10 @@ class FonteDocTraceability:
     def origem(self, doc_id: str) -> dict:
         """SPEC ou ADR approved do central, com a url e o texto que a descoberta usa."""
         central = self._central or Path("")
-        docs = central / "docs" / self._codigo
-        entrada = self._registry_central().get(doc_id)
-        if entrada is None:
-            raise OrigemInvalida(f"{doc_id} não está no registry do central em {docs}")
+        pasta, problemas = self.pasta_das_origens([doc_id])
+        if problemas:
+            raise OrigemInvalida("; ".join(problemas))
+        entrada = self._registry_central(pasta)[doc_id]
         tipo, status = entrada.get("type"), entrada.get("status")
         if tipo not in {"SPEC", "ADR"}:
             raise OrigemInvalida(f"{doc_id} é {tipo}: a origem da descoberta é SPEC ou ADR")

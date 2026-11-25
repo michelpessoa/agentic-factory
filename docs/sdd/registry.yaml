@@ -105,7 +105,7 @@ documents:
   - id: SDD-FAB-0011
     type: SDD
     title: "Correções pequenas do vigia e da descoberta: número da PR da base no aviso com teste que discrimina e branch da PR da base sem o prefixo duplicado"
-    status: approved
+    status: implemented
     owner: "Michel Pessoa"
     created: "2026-11-24"
     updated: "2026-11-24"
@@ -115,10 +115,20 @@ documents:
   - id: SDD-FAB-0012
     type: SDD
     title: "Passo 0 do verify-sdd na verificação da fábrica: SDD enxuta com source_docs chega a implemented com a linha \"Fidelidade à origem\""
-    status: approved
+    status: implemented
     owner: "Michel Pessoa"
     created: "2026-11-24"
     updated: "2026-11-24"
     relates_to: [SDD-FAB-0009, SDD-FAB-0011]
     path: "docs/sdd/SDD-FAB-0012.md"
     tags: [verificacao, verify-sdd, fidelidade-a-origem, check_source_docs, pipeline, revisor, fabrica-agentica]
+  - id: SDD-FAB-0013
+    type: SDD
+    title: "Origem de outra pasta do central na fábrica: SPEC que declara o projeto na coluna Projeto vira source_docs da SDD do projeto"
+    status: implemented
+    owner: "Michel Pessoa"
+    created: "2026-11-24"
+    updated: "2026-11-24"
+    relates_to: [SDD-FAB-0009, SDD-FAB-0012]
+    path: "docs/sdd/SDD-FAB-0013.md"
+    tags: [origem, coluna-projeto, check_source_docs, descoberta, vigia, fabrica-agentica]

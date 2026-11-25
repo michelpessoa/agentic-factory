@@ -1204,6 +1204,45 @@ def test_politica_com_kit_real_sai_com_approved_by_que_o_validate_state_aceita(
     assert not d.aprovacoes.aprovada("ZERO", caminho, texto.encode())
 
 
+# SDD-FAB-0013, RF04: a SPEC de outra pasta achada pela coluna Projeto chega ao rascunho
+
+
+@pytest.mark.skipif(not FRAMEWORK_PADRAO.is_dir(), reason="framework ausente")
+def test_compilar_spec_de_outra_pasta_chega_ao_rascunho_sem_origem_invalida(
+    montar, remoto, tmp_path
+):
+    from adapters.doc_traceability.central import LeituraDoCentral
+    from tests.test_vigia_central import Central
+
+    (tmp_path / "c").mkdir()
+    central = Central(tmp_path / "c")
+    spec_id = central.spec(40, codigo="DTF", projetos="DTF, ZERO")
+    central.publicar()
+    git("remote", "set-url", "origin", "https://github.com/dona/central.git", cwd=central.clone)
+    leitor = tmp_path / "leitor"
+    git("clone", "-q", str(central.nu), str(leitor), cwd=tmp_path)
+    assert [i for i, _ in LeituraDoCentral(leitor, "ZERO", Framework()).specs_aprovadas()] == [
+        spec_id
+    ]
+    (remoto / "docs/sdd").mkdir(parents=True)
+    (remoto / "docs/sdd/registry.yaml").write_text(
+        'project: "ZERO"\nframework_version: "2.7.0"\ndocuments:\n', encoding="utf-8"
+    )
+    git("add", "-A", cwd=remoto)
+    git("commit", "-qm", "registry 2.7.0", cwd=remoto)
+    enxuto = rascunho_enxuto(
+        sizing="medium", origem=spec_id, requisito="Aviso de mudança", arquivos=["app/avisos.py"]
+    )
+    fonte = FonteDocTraceability(Framework(), central.clone, "ZERO")
+    d = montar(RunnerFila(rascunho(enxuto)), fonte)
+    sessao = d.compilar(spec_id)
+    origem = d.dados(sessao)["origens"][0]
+    assert (
+        origem["url"] == f"https://github.com/dona/central/blob/main/docs/DTF/03-spec/{spec_id}.md"
+    )
+    assert d.estado(sessao) == AGUARDANDO_APROVACAO, d.dados(sessao).get("recusas")
+
+
 # SDD-FAB-0010, RF06: a compilação automática não pede fabrica aprovar
 
 

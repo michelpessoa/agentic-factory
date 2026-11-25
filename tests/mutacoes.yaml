@@ -374,3 +374,19 @@
   descricao: evidência ignora as linhas_extras (RF03)
   procurar: 'tabela = _linhas([*linhas_extras, *validacao["criterios"]])'
   trocar: 'tabela = _linhas(validacao["criterios"])'
+# SDD-FAB-0013: origem de outra pasta do central
+- arquivo: adapters/doc_traceability/__init__.py
+  teste: tests/test_origem.py
+  descricao: SPEC de outra pasta aceita sem o código do projeto na coluna Projeto (RF02)
+  procurar: 'if self._codigo in _projetos_da_spec(texto):'
+  trocar: 'if True:'
+- arquivo: adapters/doc_traceability/__init__.py
+  teste: tests/test_origem.py
+  descricao: origens em mais de uma pasta do central aceitas (RF03)
+  procurar: 'if len(pastas) > 1:'
+  trocar: 'if False:'
+- arquivo: adapters/doc_traceability/__init__.py
+  teste: tests/test_origem.py
+  descricao: fidelidade à origem volta a conferir docs/<codigo> (RF06)
+  procurar: 'str(arvore / "docs" / pasta),'
+  trocar: 'str(arvore / "docs" / self._codigo),'

@@ -2,7 +2,7 @@
 id: SDD-FAB-0011
 type: SDD
 title: "Correções pequenas do vigia e da descoberta: número da PR da base no aviso com teste que discrimina e branch da PR da base sem o prefixo duplicado"
-status: approved
+status: implemented
 project: "FAB"
 owner: "Michel Pessoa"
 created: "2026-11-24"
@@ -142,20 +142,27 @@ e `fabrica-cobaia` e `fabrica-central-teste` presentes, como no CI.
 
 Antes de marcar `implemented`, confirme as duas direções — SDD incompleta
 tanto quanto SDD estourada são falha:
-- [ ] Todo requisito consolidado acima tem código ou teste correspondente.
-- [ ] Todo arquivo tocado aparece na coluna `Arquivos` dos requisitos ou
+- [x] Todo requisito consolidado acima tem código ou teste correspondente.
+- [x] Todo arquivo tocado aparece na coluna `Arquivos` dos requisitos ou
       das tasks.
-- [ ] Nenhuma abstração, config, feature flag ou refactor extra que não
+- [x] Nenhuma abstração, config, feature flag ou refactor extra que não
       foi pedido por nenhum requisito consolidado.
 
 ## Evidência de verificação (preencher antes de status `implemented`)
 
-Preenchida pela skill `verify-sdd`, em sessão separada da que implementou.
+Verificação independente completa em `docs/sdd/validation-SDD-FAB-0011.md`. Veredito: **PASS**.
 
-**Verificador independente:** {sim | não — mesma sessão que implementou}
+**Verificador independente:** sim. A sessão `session_01RJ9BCq8EbL7uQHP4P9e3bg` não implementou esta SDD (`session_01RJ9BCq3KAUZNZUWApYFw8M`, PR #69) e não leu o histórico dela, só o HANDOFF e os artefatos do repositório. Diff verificado: `f620777..a804e83`. Critérios rodados em `develop` `352fe75` (depois de `a804e83` vieram só a SDD-FAB-0012, a release 0.8.0 e o HANDOFF). Kit 2.8.0 em `1d9b16c` (`FABRICA_FRAMEWORK=$HOME/kit-2.8.0`); `fabrica-cobaia` e `fabrica-central-teste` por `git clone --depth 1`, como no CI. As mutações partiram de cópias no scratchpad e foram restauradas por elas, com `git diff --quiet` limpo depois de cada uma. Não houve `git stash` nem commit.
 
-| # | Comando rodado | Saída (resumo) | Sensor | Passou? | Assertion (file:line) | Perfil usado |
-|---|---|---|---|---|---|---|
+| Rodada | # | Comando rodado | Saída (resumo) | Sensor | Passou? | Assertion (file:line) | Perfil usado |
+|---|---|---|---|---|---|---|---|
+| 1 | Escopo | `git diff --stat f620777..a804e83` e leitura do diff contra RF01, RF02 e "Especificação técnica consolidada" | 4 arquivos (`fabrica/descoberta.py`, `tests/mutacoes.yaml`, `tests/test_descoberta.py`, `tests/test_vigia_central.py`), todos na coluna `Arquivos`; RF01 só muda testes, como a SDD decide; RF02 muda só a linha do `ramo`; as duas entradas de `mutacoes.yaml` têm o `procurar` e o `trocar` da SDD; nada fora da SDD | sem teste automatizado (leitura do diff) | Sim | `n/a` | n/a |
+| 1 | C01 | `uv run pytest -q tests/test_vigia_central.py -k avisos` | `7 passed, 19 deselected`; o teste novo `test_avisos_publicacao_recusada_sem_numero_no_motivo_avisa_com_a_pr` usa `DescobertaInvalida("checks vermelhos")`, sem `#` | ver C02 | Sim | `tests/test_vigia_central.py:519` | automatizado |
+| 1 | C02 | Cópia no scratchpad; em `fabrica/vigia.py:204`, `str(erro), pr)` trocado por `str(erro), None)`; pytest de C01; restaurar | mutante: `1 failed, 6 passed` (só o teste novo falha, o antigo segue verde, como o A08 da SDD-FAB-0009 apontou); restaurado: `7 passed` | o próprio critério: discrimina | Sim | `tests/test_vigia_central.py:519` | automatizado |
+| 1 | C03 | `uv run pytest -q tests/test_descoberta.py -k branch` | `1 passed, 86 deselected` | ver C04 | Sim | `tests/test_descoberta.py:270`, `:271` | automatizado |
+| 1 | C04 | Cópia no scratchpad; em `fabrica/descoberta.py:493`, `feature/{sdd_id.lower()}` trocado por `feature/sdd-{sdd_id.lower()}`; pytest de C03; restaurar | mutante: `1 failed` (`test_branch_da_pr_da_base_sem_prefixo_duplicado`); restaurado: `1 passed` | o próprio critério: discrimina | Sim | `tests/test_descoberta.py:270` | automatizado |
+| 1 | C05 | `uv run python scripts/selftest.py` | exit 0; `75/75 mutações mortas`, as duas da SDD-FAB-0011 incluídas (`aviso da publicação da SDD compilada sem o número da PR (RF01)`, `branch da PR da base com o prefixo sdd- duplicado (RF02)`) | o próprio critério é de mutação | Sim | `n/a` (agregado) | automatizado |
+| 1 | C06 | `uv run ruff check . && uv run ruff format --check . && uv run pytest -q` | `All checks passed!`; `118 files already formatted`; `568 passed, 29 deselected in 143.04s` (marcadores `docker` e `claude` fora, por `addopts`) | os sensores de C02 e C04 | Sim | `n/a` (agregado) | automatizado |
 
 ## Rastreabilidade
 

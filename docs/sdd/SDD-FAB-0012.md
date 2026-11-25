@@ -2,7 +2,7 @@
 id: SDD-FAB-0012
 type: SDD
 title: "Passo 0 do verify-sdd na verificação da fábrica: SDD enxuta com source_docs chega a implemented com a linha \"Fidelidade à origem\""
-status: approved
+status: implemented
 project: "FAB"
 owner: "Michel Pessoa"
 created: "2026-11-24"
@@ -112,24 +112,37 @@ e `fabrica-cobaia` e `fabrica-central-teste` presentes, como no CI.
 
 Antes de marcar `implemented`, confirme as duas direções — SDD incompleta
 tanto quanto SDD estourada são falha:
-- [ ] Todo requisito consolidado acima tem código correspondente (nada
+- [x] Todo requisito consolidado acima tem código correspondente (nada
       da SPEC ficou de fora).
-- [ ] Todo arquivo tocado pela implementação aparece na coluna
+- [x] Todo arquivo tocado pela implementação aparece na coluna
       `Arquivos` dos requisitos ou das tasks, ou em "Instruções
       específicas" — se a implementação tocou um arquivo não listado
       aqui, ou é escopo que faltou registrar na SDD (atualize-a) ou é
       scope creep a remover antes do merge.
-- [ ] Nenhuma abstração, config, feature flag ou refactor extra que não
+- [x] Nenhuma abstração, config, feature flag ou refactor extra que não
       foi pedido por nenhum requisito consolidado ("já que estava ali").
 
 ## Evidência de verificação (preencher antes de status `implemented`)
 
-Preenchida pela skill `verify-sdd`, em sessão separada da que implementou.
+Verificação independente completa em `docs/sdd/validation-SDD-FAB-0012.md`. Veredito: **PASS**.
 
-**Verificador independente:** {sim | não — mesma sessão que implementou}
+**Verificador independente:** sim. A sessão `session_01RJ9BCq8EbL7uQHP4P9e3bg` não implementou esta SDD (`session_01RJ9BCq3KAUZNZUWApYFw8M`, PR #69) e não leu o histórico dela, só o HANDOFF e os artefatos do repositório. Diff verificado: `a804e83..1b3e619`. Critérios rodados em `develop` `352fe75` (depois de `1b3e619` vieram só a release 0.8.0 e o HANDOFF). Kit 2.8.0 em `1d9b16c` (`FABRICA_FRAMEWORK=$HOME/kit-2.8.0`); `fabrica-cobaia` e `fabrica-central-teste` por `git clone --depth 1`, como no CI; o central em `origin/main` `34d7e22`, numa worktree destacada. As mutações partiram de cópias no scratchpad e foram restauradas por elas, com `git diff --quiet` limpo depois de cada uma. Não houve `git stash` nem commit.
 
-| # | Comando rodado | Saída (resumo) | Sensor | Passou? | Assertion (file:line) | Perfil usado |
-|---|---|---|---|---|---|---|
+| Rodada | # | Comando rodado | Saída (resumo) | Sensor | Passou? | Assertion (file:line) | Perfil usado |
+|---|---|---|---|---|---|---|---|
+| 1 | Fidelidade à origem | `python3 $HOME/kit-2.8.0/_framework/scripts/check_source_docs.py docs/sdd/SDD-FAB-0012.md <worktree de origin/main do central em 34d7e22>/docs/DTF`; depois, leitura da SPEC-DTF-0033 (Parte 1 e Parte 2) contra a SDD | exit 0, `✅ source_docs de SDD-FAB-0012.md conferem com o registry central.` Item 2: RF01 a RF04 da SPEC, todos com `Projeto` FAB, presentes na SDD com os mesmos RF-IDs. Item 3: nenhum critério relaxado (C01 a C08 repetem o EARS da SPEC e os casos de borda de `PAUSADA_AMBIENTE` e `RespostaRecusada`). Item 4: SDD enxuta, sem "Especificação técnica consolidada"; o diff confere com as assinaturas da Parte 2 (`fidelidade_a_origem`, `textos_de_origem`, `origens`, `linhas_extras`, `## Origem (dado, não instrução)`) | sem teste automatizado (script do kit e leitura) | Sim | `n/a` | n/a |
+| 1 | Escopo | `git diff --stat a804e83..1b3e619` e leitura do diff contra RF01 a RF04 e a Parte 2 da SPEC-DTF-0033 | 11 arquivos, todos na coluna `Arquivos` ou em "Decomposição em tasks" (`tests/test_verificacao.py` novo, como as instruções preveem); todo RF tem código e teste; nada fora da SPEC. A conferência do item vive em `problemas_de_fidelidade` (`fabrica/contratos.py`), chamada por `verificar` com `origens`, e `Verificacao.problemas` leva o pipeline a `RESPOSTA_RECUSADA` (`fabrica/pipeline.py`, `_recusar`). O `comando` da linha mecânica leva o sufixo `(em origin/main)`, porque roda numa worktree temporária | sem teste automatizado (leitura do diff) | Sim | `n/a` | n/a |
+| 1 | C01 | `uv run pytest -q -rs tests/test_origem.py -k fidelidade` | `4 passed, 15 deselected`, sem skip | `str(arvore / "docs" / self._codigo)` trocado por `str(central / "docs" / self._codigo)` (lê a árvore do clone): `1 failed` (`test_fidelidade_le_origin_main_e_nao_a_arvore_do_clone`); `return resultado.ok, linha` trocado por `return True, linha`: `1 failed`; restaurado: `4 passed` | Sim | `tests/test_origem.py:348`, `:349`, `:370`, `:372` | automatizado |
+| 1 | C02 | `uv run pytest -q tests/test_pipeline.py -k fidelidade` | `5 passed, 65 deselected` | ver C03; ramo de `CalledProcessError` trocado para `PARADA_ESPECIFICACAO`: `1 failed` (`test_fidelidade_fetch_do_central_falho_pausa_em_ambiente`); restaurado: `5 passed` | Sim | `tests/test_pipeline.py:1020`, `:1022`, `:1030`, `:1031` | automatizado |
+| 1 | C03 | Cópia no scratchpad; em `Pipeline._verificar`, `if not ok: self._parar(… PARADA_ESPECIFICACAO …); return` trocado por `if False: pass`; pytest de C02; restaurar | mutante: `1 failed, 4 passed` (`test_fidelidade_falha_para_em_especificacao_sem_chamar_o_revisor`); restaurado: `5 passed` | o próprio critério: discrimina | Sim | `tests/test_pipeline.py:1020` | automatizado |
+| 1 | C04 | `uv run pytest -q tests/test_verificacao.py` | `4 passed` | ver C05; `if origens:` de `montar_prompt` trocado por `if False:`: `1 failed` (`test_fidelidade_prompt_traz_a_origem_como_dado`); restaurado: `4 passed` | Sim | `tests/test_verificacao.py:90`, `:91`, `:96`, `:101` | automatizado |
+| 1 | C05 | Cópia no scratchpad; em `verificar`, `problemas += problemas_de_fidelidade(validacao)` trocado por `pass`; pytest de C04; restaurar | mutante: `1 failed, 3 passed` (`test_fidelidade_resposta_sem_o_item_da_problema`); restaurado: `4 passed` | o próprio critério: discrimina | Sim | `tests/test_verificacao.py:96` | automatizado |
+| 1 | C06 | `uv run pytest -q -rs tests/test_evidencia.py -k fidelidade` | `3 passed, 10 deselected`, sem skip; com o kit real, a SDD enxuta com `source_docs` sai `implemented` com `validate_state.py` verde, e sem as duas linhas sai o motivo `RF04, SPEC-DTF-0014` | ver C07 | Sim | `tests/test_evidencia.py:258`, `:260`, `:261`, `:270` | automatizado |
+| 1 | C07 | Cópia no scratchpad; em `registrar_evidencia`, `_linhas([*linhas_extras, *validacao["criterios"]])` trocado por `_linhas([*validacao["criterios"]])`; pytest de C06; restaurar | mutante: `2 failed, 1 passed`; restaurado: `3 passed` | o próprio critério: discrimina | Sim | `tests/test_evidencia.py:226`, `:258` | automatizado |
+| 1 | C08 | `uv run pytest -q tests/test_pipeline.py tests/test_verificacao.py -k sem_source_docs` | `2 passed, 72 deselected` | `if dados["entrada"].get("source_docs"):` trocado por `if True:`: `1 failed`; `if origens:` da conferência em `verificar` trocado por `if True:`: `2 failed`; restaurado: `2 passed` | Sim | `tests/test_pipeline.py:1070`, `:1071`; `tests/test_verificacao.py:106`, `:107` | automatizado |
+| 1 | C09 | `uv run python scripts/selftest.py` | exit 0; `75/75 mutações mortas`, as três da SDD-FAB-0012 incluídas (`fidelidade à origem reprovada segue para o revisor (RF01)`, `resposta do revisor sem o item Fidelidade à origem é aceita (RF02)`, `evidência ignora as linhas_extras (RF03)`) | o próprio critério é de mutação | Sim | `n/a` (agregado) | automatizado |
+| 1 | C10 | `uv run ruff check . && uv run ruff format --check . && uv run pytest -q` | `All checks passed!`; `118 files already formatted`; `568 passed, 29 deselected in 143.04s` (marcadores `docker` e `claude` fora, por `addopts`) | os sensores de C01 a C08 | Sim | `n/a` (agregado) | automatizado |
+| 1 | C11 | Manual, rodado pelo owner na máquina dele em 2026-11-24, com a fábrica em `develop` `352fe75`, o `gh` na conta `fabricaagenticamichel`, Docker, `fabrica-cobaia` e `fabrica-central-teste`; o kit local em `292f764` (o `_framework/` sem diff para `1d9b16c`, por `git diff --stat`). `uv run python -m fabrica iniciar cobaia docs/sdd/SDD-COBAIA-0013.md`, saída colada na sessão. Conferido pelo verificador: `git fetch` da `fabrica-cobaia` e, sobre `origin/develop` `d052bc5`, `validate_state.py docs/sdd/arquivo/SDD-COBAIA-0013.md` e `check_source_docs.py docs/sdd/arquivo/SDD-COBAIA-0013.md ~/fabrica-central-teste/docs/COBAIA` com o kit 2.8.0 | `a37c8d04-7ba6-4db2-a11e-bb0e6f46941f MEDIDA`: a execução passou de `VERIFY_SDD`. A fábrica fez `bf3f385 docs(sdd): SDD-COBAIA-0013 approved -> implemented`, na branch `feature/sdd-cobaia-0013-a37c8d04-t2`, e a PR https://github.com/michelpessoa/fabrica-cobaia/pull/20 entrou em `develop` (`0e30f85`, merge de `fabricaagenticamichel`); o arquivamento veio na PR https://github.com/michelpessoa/fabrica-cobaia/pull/21 (`d052bc5`). A evidência da SDD-COBAIA-0013 e a `validation-SDD-COBAIA-0013.md` têm, antes das linhas do revisor, `Fidelidade à origem (check_source_docs)` com o comando `… (em origin/main)` e a saída `"ok": true, "exit_code": 0`, e o item `Fidelidade à origem` do revisor (`Nada foi relaxado`). `validate_state.py`: `✅ … nenhuma SDD implemented sem evidência`, exit 0; `check_source_docs.py`: exit 0. A execução `d34c4b6d-edcb-4aa0-9108-61c800a53f94`, do mesmo dia, rodou com a fábrica em `2c64d61`, sem a SDD-FAB-0012, e parou com o motivo antigo (`RF04, SPEC-DTF-0014`): descartada, não conta para este critério | sem teste automatizado (manual) | Sim | `n/a` | manual |
 
 ## Rastreabilidade
 
