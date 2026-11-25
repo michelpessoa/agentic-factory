@@ -4,10 +4,10 @@ _Gerado automaticamente a partir de `registry.yaml`. Não editar manualmente. Fr
 
 Repositório de código: https://github.com/michelpessoa/fabrica-agentica
 
-Total de documentos: **12**
+Total de documentos: **13**
 
 
-## SDD (12)
+## SDD (13)
 
 | ID | Título | Status | Owner | Atualizado | Relacionados |
 |---|---|---|---|---|---|
@@ -21,8 +21,9 @@ Total de documentos: **12**
 | `SDD-FAB-0008` | Registry do projeto com documents em fluxo: a redação passa o documents para bloco antes de acrescentar a SDD nova, para o registry seguir YAML válido | implemented | Michel Pessoa | 2026-11-21 | SDD-FAB-0005 |
 | `SDD-FAB-0009` | Vigia do central na fábrica: PR de documento conferida sozinha, SPEC aprovada compilada em SDD aprovada por política, entrada pela política e framework 2.8.0 | implemented | Michel Pessoa | 2026-11-21 | SDD-FAB-0005, SDD-FAB-0006, SDD-FAB-0007, SDD-FAB-0008 |
 | `SDD-FAB-0010` | Correções do vigia do central depois da verificação e do A13 da SDD-FAB-0009: sensor do hash com o adaptador real, número da PR no aviso, etiqueta na PR do central, merge da fábrica na entrada por política e vigia que não cai sem a base | implemented | Michel Pessoa | 2026-11-23 | SDD-FAB-0009 |
-| `SDD-FAB-0011` | Correções pequenas do vigia e da descoberta: número da PR da base no aviso com teste que discrimina e branch da PR da base sem o prefixo duplicado | approved | Michel Pessoa | 2026-11-24 | SDD-FAB-0009, SDD-FAB-0010 |
-| `SDD-FAB-0012` | Passo 0 do verify-sdd na verificação da fábrica: SDD enxuta com source_docs chega a implemented com a linha "Fidelidade à origem" | approved | Michel Pessoa | 2026-11-24 | SDD-FAB-0009, SDD-FAB-0011 |
+| `SDD-FAB-0011` | Correções pequenas do vigia e da descoberta: número da PR da base no aviso com teste que discrimina e branch da PR da base sem o prefixo duplicado | implemented | Michel Pessoa | 2026-11-24 | SDD-FAB-0009, SDD-FAB-0010 |
+| `SDD-FAB-0012` | Passo 0 do verify-sdd na verificação da fábrica: SDD enxuta com source_docs chega a implemented com a linha "Fidelidade à origem" | implemented | Michel Pessoa | 2026-11-24 | SDD-FAB-0009, SDD-FAB-0011 |
+| `SDD-FAB-0013` | Origem de outra pasta do central na fábrica: SPEC que declara o projeto na coluna Projeto vira source_docs da SDD do projeto | implemented | Michel Pessoa | 2026-11-24 | SDD-FAB-0009, SDD-FAB-0012 |
 
 ## Documentos originados
 
